@@ -1,0 +1,75 @@
+# Publishes to Sonatype Central Portal (the new system that replaces OSSRH).
+#
+# Required repository secrets (Settings → Secrets → Actions, scoped to the
+# "maven-central" environment for the manual approval gate):
+#   SONATYPE_USERNAME           — Central Portal user token name
+#   SONATYPE_PASSWORD           — Central Portal user token password
+#   SIGNING_KEY                 — ASCII-armored GPG private key (full block)
+#   SIGNING_KEY_PASSWORD        — passphrase for the GPG private key
+#
+# One-time setup (cannot be automated):
+#   1. central.sonatype.com → register the "ai.webscraping" namespace and
+#      verify by adding the TXT record they show on the webscraping.ai DNS.
+#   2. Generate a Central Portal user token (Settings → User Token) and stash
+#      it in the SONATYPE_USERNAME / SONATYPE_PASSWORD secrets.
+#   3. Generate a GPG key for "WebScraping.AI <signing@webscraping.ai>",
+#      publish the public key to keys.openpgp.org *and* keyserver.ubuntu.com,
+#      and stash the private key + passphrase in SIGNING_KEY / SIGNING_KEY_PASSWORD.
+#   4. Repo → Settings → Environments → create "maven-central" with required
+#      reviewers (optional approval gate).
+#
+# Once published, packages appear at:
+#   https://central.sonatype.com/artifact/ai.webscraping/webscraping-ai
+
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+    environment: maven-central
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches Version.VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          SRC_VERSION=$(grep -E '^\s*public\s+static\s+final\s+String\s+VERSION' \
+              src/main/java/ai/webscraping/Version.java | sed -E 's/.*"([^"]+)".*/\1/')
+          BUILD_VERSION=$(grep -E '^version\s*=' build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "tag=$TAG_VERSION  source=$SRC_VERSION  build=$BUILD_VERSION"
+          if [ "$TAG_VERSION" != "$SRC_VERSION" ] || [ "$TAG_VERSION" != "$BUILD_VERSION" ]; then
+            echo "::error::Tag v$TAG_VERSION does not match Version.VERSION ($SRC_VERSION) or build.gradle.kts ($BUILD_VERSION)"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Run tests before publishing
+        run: ./gradlew test --stacktrace
+
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache --stacktrace
