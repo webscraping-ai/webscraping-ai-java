@@ -20,8 +20,8 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
-    withJavadocJar()
-    withSourcesJar()
+    // sources + javadoc JARs are added by the vanniktech-maven-publish plugin
+    // automatically; declaring them here too would publish them twice.
 }
 
 tasks.withType<JavaCompile>().configureEach {
