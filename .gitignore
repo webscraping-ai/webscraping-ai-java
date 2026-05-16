@@ -7,3 +7,8 @@ out/
 .DS_Store
 local.properties
 .kotlin/
+
+# Maven Central signing material — must never be committed.
+signing/
+signing*.asc
+signing*.txt
