@@ -3,6 +3,14 @@
 All notable changes to `ai.webscraping:webscraping-ai` are documented in
 this file.
 
+## 4.0.1 — 2026-06-21
+
+### Fixed
+
+- Transport errors no longer leak the API key: the query string (which carries `api_key`) is redacted from the URL embedded in `ApiTimeoutException` / `ApiConnectionException` messages.
+- `AccountInfo` now matches the live `/account` response — `resetsAt` (`resets_at`) and `remainingConcurrency` (`remaining_concurrency`), replacing the stale `resumesAt` / `concurrencyLimit` / `creditsPerMonth`.
+- `selected` and `selectedMultiple` no longer require a selector; omitting it returns whole-page HTML, matching the API.
+
 ## 4.0.0 — 2026-05-12
 
 First release of the official Java client.
