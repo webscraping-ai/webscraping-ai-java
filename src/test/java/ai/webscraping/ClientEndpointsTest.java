@@ -136,6 +136,32 @@ class ClientEndpointsTest {
     }
 
     @Test
+    void selectedWithoutSelectorOmitsParam() {
+        stubFor(get(urlPathEqualTo("/selected"))
+            .willReturn(aResponse().withStatus(200).withBody("<html></html>")));
+
+        String out = client.selected(SelectedOptions.builder()
+            .url("https://example.com")
+            .build());
+
+        assertThat(out).isEqualTo("<html></html>");
+        assertThat(lastQueryString()).doesNotContain("selector=");
+    }
+
+    @Test
+    void selectedMultipleWithoutSelectorsOmitsParam() {
+        stubFor(get(urlPathEqualTo("/selected-multiple"))
+            .willReturn(aResponse().withStatus(200).withBody("[[]]")));
+
+        SelectedMultipleResult out = client.selectedMultiple(SelectedMultipleOptions.builder()
+            .url("https://example.com")
+            .build());
+
+        assertThat(out.getResults()).hasSize(1);
+        assertThat(lastQueryString()).doesNotContain("selectors=");
+    }
+
+    @Test
     void questionUnwrapsJsonQuotedAnswerByDefault() {
         stubFor(get(urlPathEqualTo("/ai/question"))
             .willReturn(aResponse().withStatus(200).withBody("\"This page is an example.\"")));
@@ -190,12 +216,14 @@ class ClientEndpointsTest {
     void accountReturnsTypedAccountInfo() {
         stubFor(get(urlPathEqualTo("/account"))
             .willReturn(aResponse().withStatus(200)
-                .withBody("{\"email\":\"u@example.com\",\"remaining_api_calls\":42,\"resumes_at\":1762000000}")));
+                .withBody("{\"email\":\"u@example.com\",\"remaining_api_calls\":42,"
+                    + "\"resets_at\":1762000000,\"remaining_concurrency\":5}")));
 
         AccountInfo info = client.account();
         assertThat(info.getEmail()).isEqualTo("u@example.com");
         assertThat(info.getRemainingApiCalls()).isEqualTo(42L);
-        assertThat(info.getResumesAt()).isEqualTo(1762000000L);
+        assertThat(info.getResetsAt()).isEqualTo(1762000000L);
+        assertThat(info.getRemainingConcurrency()).isEqualTo(5);
     }
 
     @Test

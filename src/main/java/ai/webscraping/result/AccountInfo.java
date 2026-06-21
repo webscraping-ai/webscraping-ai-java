@@ -9,47 +9,46 @@ public final class AccountInfo {
 
     private final String email;
     private final long remainingApiCalls;
-    private final Long resumesAt;
-    private final String concurrencyLimit;
-    private final String creditsPerMonth;
+    private final Long resetsAt;
+    private final Integer remainingConcurrency;
 
     public AccountInfo(
         @JsonProperty("email") String email,
         @JsonProperty("remaining_api_calls") long remainingApiCalls,
-        @JsonProperty("resumes_at") Long resumesAt,
-        @JsonProperty("concurrency_limit") String concurrencyLimit,
-        @JsonProperty("credits_per_month") String creditsPerMonth
+        @JsonProperty("resets_at") Long resetsAt,
+        @JsonProperty("remaining_concurrency") Integer remainingConcurrency
     ) {
         this.email = email;
         this.remainingApiCalls = remainingApiCalls;
-        this.resumesAt = resumesAt;
-        this.concurrencyLimit = concurrencyLimit;
-        this.creditsPerMonth = creditsPerMonth;
+        this.resetsAt = resetsAt;
+        this.remainingConcurrency = remainingConcurrency;
     }
 
+    /** The account's email address. */
     public String getEmail() {
         return email;
     }
 
+    /** Number of API calls remaining in the current billing period. */
     public long getRemainingApiCalls() {
         return remainingApiCalls;
     }
 
-    /** Unix-time (seconds) when API credits refill, or {@code null}. */
-    public Long getResumesAt() {
-        return resumesAt;
+    /** Unix-time (seconds) when the API-call allowance resets, or {@code null}. */
+    public Long getResetsAt() {
+        return resetsAt;
     }
 
-    public String getConcurrencyLimit() {
-        return concurrencyLimit;
-    }
-
-    public String getCreditsPerMonth() {
-        return creditsPerMonth;
+    /** Number of concurrent requests still available, or {@code null}. */
+    public Integer getRemainingConcurrency() {
+        return remainingConcurrency;
     }
 
     @Override
     public String toString() {
-        return "AccountInfo{email=" + email + ", remainingApiCalls=" + remainingApiCalls + "}";
+        return "AccountInfo{email=" + email
+            + ", remainingApiCalls=" + remainingApiCalls
+            + ", resetsAt=" + resetsAt
+            + ", remainingConcurrency=" + remainingConcurrency + "}";
     }
 }

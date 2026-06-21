@@ -92,10 +92,11 @@ public final class Client {
     public String selected(SelectedOptions opts) {
         require(opts, "opts");
         require(opts.getUrl(), "opts.url");
-        require(opts.getSelector(), "opts.selector");
         QueryEncoder q = commonParams(opts);
         q.set("url", opts.getUrl());
-        q.set("selector", opts.getSelector());
+        if (notEmpty(opts.getSelector())) {
+            q.set("selector", opts.getSelector());
+        }
         if (notEmpty(opts.getFormat())) {
             q.set("format", opts.getFormat());
         }
@@ -106,12 +107,11 @@ public final class Client {
     public SelectedMultipleResult selectedMultiple(SelectedMultipleOptions opts) {
         require(opts, "opts");
         require(opts.getUrl(), "opts.url");
-        if (opts.getSelectors() == null || opts.getSelectors().isEmpty()) {
-            throw new IllegalArgumentException("opts.selectors must contain at least one selector");
-        }
         QueryEncoder q = commonParams(opts);
         q.set("url", opts.getUrl());
-        q.set("selectors", opts.getSelectors());
+        if (opts.getSelectors() != null && !opts.getSelectors().isEmpty()) {
+            q.set("selectors", opts.getSelectors());
+        }
         String body = request("/selected-multiple", q).getBody();
         List<List<String>> parsed = Json.read(body, new TypeReference<List<List<String>>>() {});
         return new SelectedMultipleResult(parsed);

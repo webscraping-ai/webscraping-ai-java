@@ -53,14 +53,27 @@ public final class JdkHttpTransport implements Transport {
             );
             return new Response(resp.statusCode(), resp.body());
         } catch (HttpTimeoutException e) {
-            throw new ApiTimeoutException("Request to " + request.getUrl() + " timed out", e);
+            throw new ApiTimeoutException("Request to " + redactUrl(request.getUrl()) + " timed out", e);
         } catch (IOException e) {
             throw new ApiConnectionException(
-                "Request to " + request.getUrl() + " failed: " + e.getMessage(), e);
+                "Request to " + redactUrl(request.getUrl()) + " failed: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ApiConnectionException(
-                "Request to " + request.getUrl() + " was interrupted", e);
+                "Request to " + redactUrl(request.getUrl()) + " was interrupted", e);
         }
+    }
+
+    /**
+     * Strips the query string from a URL so secrets (e.g. {@code api_key}) carried
+     * as query parameters never appear in exception messages or logs. The path is
+     * not secret and is preserved.
+     */
+    private static String redactUrl(String url) {
+        if (url == null) {
+            return null;
+        }
+        int q = url.indexOf('?');
+        return q < 0 ? url : url.substring(0, q);
     }
 }

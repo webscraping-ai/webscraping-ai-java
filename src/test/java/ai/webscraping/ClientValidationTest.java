@@ -37,22 +37,21 @@ class ClientValidationTest {
     }
 
     @Test
-    void selectedRequiresUrlAndSelector() {
+    void selectedRequiresUrl() {
         assertThatThrownBy(() ->
-            client.selected(SelectedOptions.builder().url("https://example.com").build()))
+            client.selected(SelectedOptions.builder().selector("h1").build()))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("opts.selector");
+            .hasMessageContaining("opts.url");
     }
 
     @Test
-    void selectedMultipleRequiresAtLeastOneSelector() {
+    void selectedMultipleRequiresUrl() {
         assertThatThrownBy(() ->
             client.selectedMultiple(SelectedMultipleOptions.builder()
-                .url("https://example.com")
-                .selectors(Collections.emptyList())
+                .selectors(Collections.singletonList("h1"))
                 .build()))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("selector");
+            .hasMessageContaining("opts.url");
     }
 
     @Test
