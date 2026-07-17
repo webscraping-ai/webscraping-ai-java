@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "ai.webscraping"
-version = "4.0.1"
+version = "4.0.2"
 description = "Official Java client for the WebScraping.AI API"
 
 repositories {

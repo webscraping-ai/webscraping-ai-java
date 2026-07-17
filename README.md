@@ -3,7 +3,11 @@
 [![CI](https://github.com/webscraping-ai/webscraping-ai-java/actions/workflows/ci.yml/badge.svg)](https://github.com/webscraping-ai/webscraping-ai-java/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/ai.webscraping/webscraping-ai.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/ai.webscraping/webscraping-ai)
 
-Official Java client for the [WebScraping.AI](https://webscraping.ai) API.
+Official Java client for the [WebScraping.AI](https://webscraping.ai) API —
+web scraping with Chromium JavaScript rendering, rotating
+datacenter/residential/stealth proxies, and AI-powered question answering and
+structured field extraction on any page. See the
+[API documentation](https://webscraping.ai/docs) for the full parameter reference.
 
 ## Install
 
@@ -11,7 +15,7 @@ Official Java client for the [WebScraping.AI](https://webscraping.ai) API.
 
 ```kotlin
 dependencies {
-    implementation("ai.webscraping:webscraping-ai:4.0.0")
+    implementation("ai.webscraping:webscraping-ai:4.0.2")
 }
 ```
 
@@ -19,7 +23,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'ai.webscraping:webscraping-ai:4.0.0'
+    implementation 'ai.webscraping:webscraping-ai:4.0.2'
 }
 ```
 
@@ -29,13 +33,17 @@ dependencies {
 <dependency>
     <groupId>ai.webscraping</groupId>
     <artifactId>webscraping-ai</artifactId>
-    <version>4.0.0</version>
+    <version>4.0.2</version>
 </dependency>
 ```
 
 Requires **Java 11 or newer**. Single runtime dependency: `jackson-databind`.
 
 ## Quick start
+
+[Sign up](https://webscraping.ai/auth/sign_up) to get an API key — the free
+trial includes 2,000 credits, no credit card required. Your key lives in the
+[dashboard](https://webscraping.ai/dashboard).
 
 ```java
 import ai.webscraping.Client;
@@ -179,6 +187,14 @@ WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
 
 Local Java + Gradle versions are pinned via [mise](https://mise.jdx.dev/)
 (`mise install` from the repo root).
+
+## Links
+
+- [WebScraping.AI](https://webscraping.ai) — features, pricing, signup
+- [API documentation](https://webscraping.ai/docs)
+- [Dashboard](https://webscraping.ai/dashboard) — API key, usage, request builder
+- Other official clients: [Python](https://github.com/webscraping-ai/webscraping-ai-python) · [JavaScript](https://github.com/webscraping-ai/webscraping-ai-js) · [Ruby](https://github.com/webscraping-ai/webscraping-ai-ruby) · [PHP](https://github.com/webscraping-ai/webscraping-ai-php) · [Go](https://github.com/webscraping-ai/webscraping-ai-go) · [.NET](https://github.com/webscraping-ai/webscraping-ai-dotnet) · [CLI](https://github.com/webscraping-ai/webscraping-ai-cli) · [MCP server](https://github.com/webscraping-ai/webscraping-ai-mcp-server) · [n8n node](https://github.com/webscraping-ai/webscraping-ai-n8n)
+- Support: [support@webscraping.ai](mailto:support@webscraping.ai)
 
 ## License
 
