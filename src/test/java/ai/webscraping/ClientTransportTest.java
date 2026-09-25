@@ -19,6 +19,7 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import ai.webscraping.exception.ApiConnectionException;
 import ai.webscraping.exception.ApiTimeoutException;
+import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.SerpOptions;
 
@@ -123,6 +124,143 @@ class ClientTransportTest {
         Throwable ex = thrownBy(() -> client.serp(SerpOptions.builder().q("x").build()));
         assertThat(ex).isInstanceOf(ApiConnectionException.class);
         assertNoKeyLeak(ex);
+    }
+
+    @Test
+    void dataErrorsDoNotLeakApiKey() {
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(200).withBody("{}").withFixedDelay(2000)));
+        Client slow = new Client(Config.builder()
+            .apiKey(SECRET)
+            .baseUrl("http://localhost:" + server.port())
+            .requestTimeout(Duration.ofMillis(150))
+            .build());
+        Throwable timeout = thrownBy(() -> slow.data(DataOptions.builder().url("https://x.com/nasa").build()));
+        assertThat(timeout).isInstanceOf(ApiTimeoutException.class);
+        assertNoKeyLeak(timeout);
+
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(400).withBody("{\"message\":\"Unsupported URL for /data.\"}")));
+        Client client = new Client(Config.builder()
+            .apiKey(SECRET)
+            .baseUrl("http://localhost:" + server.port())
+            .build());
+        Throwable badRequest = thrownBy(() -> client.data(DataOptions.builder().url("https://example.com/").build()));
+        assertThat(badRequest).isInstanceOf(ai.webscraping.exception.BadRequestException.class);
+        assertNoKeyLeak(badRequest);
+
+        Throwable invalid = thrownBy(() -> client.data(DataOptions.builder()
+            .url("https://example.com/").param("api_key", SECRET).build()));
+        assertThat(invalid).isInstanceOf(IllegalArgumentException.class);
+        assertNoKeyLeak(invalid);
+
+        int port = server.port();
+        server.stop();
+        Client down = new Client(Config.builder()
+            .apiKey(SECRET)
+            .baseUrl("http://localhost:" + port)
+            .requestTimeout(Duration.ofSeconds(2))
+            .build());
+        Throwable conn = thrownBy(() -> down.data(DataOptions.builder().url("https://x.com/nasa").build()));
+        assertThat(conn).isInstanceOf(ApiConnectionException.class);
+        assertNoKeyLeak(conn);
+    }
+
+    /**
+     * An HttpClient whose send fails the way real HTTP libraries often do: with
+     * the full request URL, api_key included, in the message and cause chain.
+     */
+    private static final class UrlEchoingHttpClient extends java.net.http.HttpClient {
+        private final boolean timeout;
+
+        UrlEchoingHttpClient(boolean timeout) {
+            this.timeout = timeout;
+        }
+
+        @Override
+        public <T> java.net.http.HttpResponse<T> send(java.net.http.HttpRequest req,
+                java.net.http.HttpResponse.BodyHandler<T> handler) throws java.io.IOException {
+            String full = req.uri().toString();
+            if (timeout) {
+                java.net.http.HttpTimeoutException e = new java.net.http.HttpTimeoutException("timed out: GET " + full);
+                e.initCause(new java.io.IOException("socket read " + full));
+                throw e;
+            }
+            throw new java.io.IOException("GET " + full + " failed", new java.net.ConnectException("refused: " + full));
+        }
+
+        @Override
+        public <T> java.util.concurrent.CompletableFuture<java.net.http.HttpResponse<T>> sendAsync(
+                java.net.http.HttpRequest req, java.net.http.HttpResponse.BodyHandler<T> handler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> java.util.concurrent.CompletableFuture<java.net.http.HttpResponse<T>> sendAsync(
+                java.net.http.HttpRequest req, java.net.http.HttpResponse.BodyHandler<T> handler,
+                java.net.http.HttpResponse.PushPromiseHandler<T> push) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public java.util.Optional<java.net.CookieHandler> cookieHandler() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<Duration> connectTimeout() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public Redirect followRedirects() {
+            return Redirect.NEVER;
+        }
+
+        @Override
+        public java.util.Optional<java.net.ProxySelector> proxy() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public javax.net.ssl.SSLContext sslContext() {
+            return null;
+        }
+
+        @Override
+        public javax.net.ssl.SSLParameters sslParameters() {
+            return null;
+        }
+
+        @Override
+        public java.util.Optional<java.net.Authenticator> authenticator() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public Version version() {
+            return Version.HTTP_1_1;
+        }
+
+        @Override
+        public java.util.Optional<java.util.concurrent.Executor> executor() {
+            return java.util.Optional.empty();
+        }
+    }
+
+    @Test
+    void dataTransportErrorsEchoingTheFullUrlDoNotLeakApiKey() {
+        for (boolean timeout : new boolean[] {true, false}) {
+            Client client = new Client(Config.builder()
+                .apiKey(SECRET)
+                .baseUrl("http://localhost:1")
+                .transport(new JdkHttpTransport(new UrlEchoingHttpClient(timeout)))
+                .build());
+            Throwable ex = thrownBy(() -> client.data(DataOptions.builder().url("https://x.com/nasa").build()));
+            assertThat(ex).isInstanceOf(timeout ? ApiTimeoutException.class : ApiConnectionException.class)
+                .hasMessageContaining("/data");
+            assertNoKeyLeak(ex);
+        }
     }
 
     @Test

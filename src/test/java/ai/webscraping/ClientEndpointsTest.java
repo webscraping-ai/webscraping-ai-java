@@ -24,6 +24,7 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 
+import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.FieldsOptions;
 import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
@@ -32,6 +33,7 @@ import ai.webscraping.option.SelectedOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
+import ai.webscraping.result.DataResult;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
 import ai.webscraping.result.SerpResult;
@@ -65,7 +67,8 @@ class ClientEndpointsTest {
         if (requests.isEmpty()) {
             return "";
         }
-        LoggedRequest req = requests.get(requests.size() - 1);
+        // getAllServeEvents() is newest-first.
+        LoggedRequest req = requests.get(0);
         java.net.URI uri = java.net.URI.create(req.getAbsoluteUrl());
         return uri.getRawQuery();
     }
@@ -363,5 +366,96 @@ class ClientEndpointsTest {
         assertThat(out.getOrganicResults()).isEmpty();
         assertThat(out.getRelatedSearches()).isNull();
         assertThat(out.getPagination().getNext()).isNull();
+    }
+
+    @Test
+    void dataEncodesUrlCountryTranscriptAndExtraParams() {
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"request_parameters\":{\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\","
+                    + "\"provider\":\"youtube\",\"type\":\"video\"},\"parse_status\":\"ok\","
+                    + "\"data\":{\"video_id\":\"dQw4w9WgXcQ\",\"title\":\"Never Gonna Give You Up\","
+                    + "\"view_count\":1600000000,\"transcript\":null,\"tags\":[\"rick\",\"astley\"]}}")));
+
+        DataResult out = client.data(DataOptions.builder()
+            .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10s")
+            .country("de")
+            .transcript(true)
+            .transcriptLanguage("en")
+            .param("comments", false)
+            .param("max_items", 25)
+            .param("a&b=c", "x&y=z #")
+            .build());
+
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key"
+            + "&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ%26t%3D10s"
+            + "&country=de&transcript=true&transcript_language=en"
+            + "&comments=false&max_items=25&a%26b%3Dc=x%26y%3Dz%20%23");
+        verify(getRequestedFor(urlPathEqualTo("/data"))
+            .withQueryParam("url", equalTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10s"))
+            .withQueryParam("a&b=c", equalTo("x&y=z #")));
+
+        assertThat(out.getParseStatus()).isEqualTo("ok");
+        assertThat(out.getRequestParameters().getProvider()).isEqualTo("youtube");
+        assertThat(out.getRequestParameters().getType()).isEqualTo("video");
+        assertThat(out.getRequestParameters().getUrl()).isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assertThat(out.getData().get("title").asText()).isEqualTo("Never Gonna Give You Up");
+        assertThat(out.getData().get("view_count").asLong()).isEqualTo(1600000000L);
+        assertThat(out.getData().get("transcript").isNull()).isTrue();
+        assertThat(out.getData().get("tags")).hasSize(2);
+    }
+
+    @Test
+    void dataSendsFalseTranscriptAndOmitsUnsetParams() {
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(200).withBody("{\"parse_status\":\"ok\",\"data\":{}}")));
+
+        client.data(DataOptions.builder().url("https://www.tiktok.com/@nasa").transcript(false).build());
+        assertThat(lastQueryString())
+            .isEqualTo("api_key=test-key&url=https%3A%2F%2Fwww.tiktok.com%2F%40nasa&transcript=false");
+
+        client.data(DataOptions.builder().url("https://www.tiktok.com/@nasa").build());
+        // No scraping params (js, proxy, timeout, ...) and no unset optionals leak in.
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&url=https%3A%2F%2Fwww.tiktok.com%2F%40nasa");
+    }
+
+    @Test
+    void dataSendsUnknownSiteUrlUnmodifiedWithoutClientSideError() {
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"request_parameters\":{\"url\":\"https://example.com/anything\","
+                    + "\"provider\":\"newsite\",\"type\":\"widget\"},\"parse_status\":\"ok\","
+                    + "\"data\":{\"title\":\"x\"}}")));
+
+        // Mixed case, %2F, non-ASCII, space, fragment, surrounding spaces: any lower-casing,
+        // trimming, fragment dropping or double-encoding would change what reaches the server.
+        String hostile = "  https://Example.COM/A%2Fb/\u00fcn\u00ef?x=1&y=a b#Frag  ";
+        DataResult out = client.data(DataOptions.builder().url(hostile).build());
+
+        verify(getRequestedFor(urlPathEqualTo("/data")).withQueryParam("url", equalTo(hostile)));
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&url=%20%20https%3A%2F%2FExample.COM%2FA%252Fb%2F%C3%BCn%C3%AF%3Fx%3D1%26y%3Da%20b%23Frag%20%20");
+        // Unknown provider/type strings round-trip; they are not enums.
+        assertThat(out.getRequestParameters().getProvider()).isEqualTo("newsite");
+        assertThat(out.getRequestParameters().getType()).isEqualTo("widget");
+    }
+
+    @Test
+    void dataParsesNullDataAndUnknownParseStatus() {
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"request_parameters\":{\"url\":\"https://www.reddit.com/r/x/comments/1/y/\","
+                    + "\"provider\":\"reddit\",\"type\":\"post\"},\"parse_status\":\"parse_failed\","
+                    + "\"data\":null,\"extra_future_field\":1}")));
+
+        DataResult out = client.data(DataOptions.builder().url("https://www.reddit.com/r/x/comments/1/y/").build());
+        assertThat(out.getParseStatus()).isEqualTo("parse_failed");
+        assertThat(out.getData()).isNull();
+
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(200).withBody("{\"parse_status\":\"partially_cached\"}")));
+        DataResult absent = client.data(DataOptions.builder().url("https://x.com/nasa").build());
+        assertThat(absent.getParseStatus()).isEqualTo("partially_cached");
+        assertThat(absent.getData()).isNull();
+        assertThat(absent.getRequestParameters()).isNull();
     }
 }

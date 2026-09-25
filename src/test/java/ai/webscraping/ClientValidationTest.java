@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.FieldsOptions;
 import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
@@ -125,5 +126,85 @@ class ClientValidationTest {
         assertThatThrownBy(() -> client.serp(null))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("opts");
+    }
+
+    @Test
+    void dataRejectsMissingOrBlankUrlBeforeAnyRequest() {
+        Client counting = countingClient();
+        assertThatThrownBy(() -> counting.data(null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("opts");
+        for (String url : new String[] {null, "", " ", "\t\n  "}) {
+            assertThatThrownBy(() -> counting.data(DataOptions.builder().url(url).country("us").build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.url");
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void dataRejectsApiKeyOrUrlInExtraParamsBeforeAnyRequest() {
+        Client counting = countingClient();
+        for (String key : new String[] {"api_key", "url"}) {
+            assertThatThrownBy(() -> counting.data(DataOptions.builder()
+                .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                .param(key, "override")
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(key);
+        }
+        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("api_key", "other");
+        assertThatThrownBy(() -> counting.data(DataOptions.builder().url("https://x.com/nasa").params(map).build()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("api_key");
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void dataRejectsCaseVariantsOfApiKeyAndUrlInExtraParams() {
+        Client counting = countingClient();
+        for (String key : new String[] {"API_KEY", "Api_Key", "URL", "Url"}) {
+            assertThatThrownBy(() -> counting.data(DataOptions.builder()
+                .url("https://x.com/nasa").param(key, "override").build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(key);
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void dataRejectsExtraParamNamedLikeATypedOptionWhetherOrNotItIsSet() {
+        Client counting = countingClient();
+        String[][] cases = {
+            {"country", "country"}, {"transcript", "transcript"}, {"transcript_language", "transcriptLanguage"},
+        };
+        for (String[] c : cases) {
+            assertThatThrownBy(() -> counting.data(DataOptions.builder()
+                .url("https://x.com/nasa").param(c[0], "x").build()))
+                .as("unset " + c[0])
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("use DataOptions." + c[1]);
+        }
+        assertThatThrownBy(() -> counting.data(DataOptions.builder()
+            .url("https://x.com/nasa").country("us").param("country", "de").build()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("use DataOptions.country");
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void dataParamRejectsInvalidKeysAndValues() {
+        assertThatThrownBy(() -> DataOptions.builder().param(null, "x"))
+            .isInstanceOf(IllegalArgumentException.class);
+        for (String blank : new String[] {"", " ", "\t\n"}) {
+            assertThatThrownBy(() -> DataOptions.builder().param(blank, "x"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("blank");
+        }
+        assertThatThrownBy(() -> DataOptions.builder().param("k", null))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> DataOptions.builder().param("k", java.util.List.of("a")))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }

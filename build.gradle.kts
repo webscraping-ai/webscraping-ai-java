@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "ai.webscraping"
-version = "4.1.0"
+version = "4.2.0"
 description = "Official Java client for the WebScraping.AI API"
 
 repositories {
@@ -75,7 +75,7 @@ sourceSets {
 }
 
 tasks.register<JavaExec>("smoke") {
-    description = "Hits the live WebScraping.AI API across all 8 endpoints. Costs ~32 credits."
+    description = "Hits the live WebScraping.AI API across all 9 endpoints. Costs ~46 credits."
     group = "verification"
     classpath = sourceSets["smoke"].runtimeClasspath
     mainClass = "ai.webscraping.smoke.Smoke"

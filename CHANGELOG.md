@@ -3,6 +3,12 @@
 All notable changes to `ai.webscraping:webscraping-ai` are documented in
 this file.
 
+## 4.2.0 — 2026-09-25
+### Added
+
+- `Client.data(DataOptions)` for the new `GET /data` endpoint: structured JSON for a page on a supported site (e.g. YouTube, TikTok, X/Twitter, LinkedIn, Instagram, Reddit), detected from the page's normal URL. `DataOptions` builder takes `url` (required, must not be blank), `country`, `transcript`, `transcriptLanguage`, and `param(key, value)` / `params(map)` for extra scalar (String/Boolean/Number) query parameters sent as-is; it does not extend `CommonOptions`. An extra param with a blank key, `api_key` or `url` (any case), or a typed option's name (`country`, `transcript`, `transcript_language`, whether or not that option is set) throws `IllegalArgumentException`. Returns `DataResult` (`getRequestParameters()` → `DataRequestParameters` with `getUrl()`/`getProvider()`/`getType()`, `getParseStatus()`, and `getData()` as a Jackson `JsonNode`, `null` for `data: null`). Provider, type and parse status are plain strings, not enums. The URL is never validated against a site list: more sites are added server-side. An unsupported URL or page type returns a 400 (`BadRequestException`) that is not charged; its message lists what is supported. 15 credits per request.
+- `./gradlew smoke` now exercises `data` on a YouTube video (asserts `parse_status` `ok`, provider `youtube`, a non-empty `title`) and on `https://example.com/` (asserts the server's 400 with its `Unsupported URL` message), ~46 credits per sweep.
+
 ## 4.1.0 — 2026-09-25
 
 ### Added

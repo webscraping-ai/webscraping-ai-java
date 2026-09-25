@@ -22,6 +22,7 @@ import ai.webscraping.exception.GatewayTimeoutException;
 import ai.webscraping.exception.PaymentRequiredException;
 import ai.webscraping.exception.RateLimitException;
 import ai.webscraping.exception.ServerException;
+import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.SerpOptions;
 
@@ -144,6 +145,32 @@ class ClientErrorMappingTest {
         assertThat(ex.getHttpStatus()).isEqualTo(500);
         assertThat(ex.getMessage()).contains("upstream failed");
         assertThat(ex.getStatusCode()).isNull();
+    }
+
+    @Test
+    void dataUnsupportedUrl400MapsToBadRequest() {
+        String msg = "Unsupported URL for /data. Supported sites: youtube, tiktok, twitter, linkedin, instagram, reddit."
+            + " For other sites, use /ai/fields";
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(400).withBody("{\"message\":\"" + msg + "\"}")));
+
+        ApiException ex = (ApiException) catchThrowable(() ->
+            client.data(DataOptions.builder().url("https://example.com/").build()));
+        assertThat(ex).isInstanceOf(BadRequestException.class);
+        assertThat(ex.getHttpStatus()).isEqualTo(400);
+        assertThat(ex.getMessage()).isEqualTo("HTTP 400: " + msg);
+        assertThat(ex.getStatusCode()).isNull();
+        assertThat(ex.getMessage()).doesNotContain("test-key");
+    }
+
+    @Test
+    void dataFetchFailure500MapsToServerException() {
+        stubFor(get(urlPathEqualTo("/data"))
+            .willReturn(aResponse().withStatus(500).withBody("{\"message\":\"Failed to fetch the page\"}")));
+
+        assertThatThrownBy(() -> client.data(DataOptions.builder().url("https://x.com/nasa").build()))
+            .isInstanceOf(ServerException.class)
+            .hasMessageContaining("Failed to fetch the page");
     }
 
     private static Throwable catchThrowable(Runnable r) {

@@ -15,7 +15,7 @@ structured field extraction on any page. See the
 
 ```kotlin
 dependencies {
-    implementation("ai.webscraping:webscraping-ai:4.1.0")
+    implementation("ai.webscraping:webscraping-ai:4.2.0")
 }
 ```
 
@@ -23,7 +23,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'ai.webscraping:webscraping-ai:4.1.0'
+    implementation 'ai.webscraping:webscraping-ai:4.2.0'
 }
 ```
 
@@ -33,7 +33,7 @@ dependencies {
 <dependency>
     <groupId>ai.webscraping</groupId>
     <artifactId>webscraping-ai</artifactId>
-    <version>4.1.0</version>
+    <version>4.2.0</version>
 </dependency>
 ```
 
@@ -96,6 +96,11 @@ SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines")
     .build());
 
+// Structured data for a page on a supported site (flat 15 credits)
+DataResult video = client.data(DataOptions.builder()
+    .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    .build());
+
 // Account quota
 AccountInfo info = client.account();
 System.out.println(info.getEmail() + " — " + info.getRemainingApiCalls() + " remaining");
@@ -145,6 +150,69 @@ Integer next = serp.getPagination().getNext(); // null when there is no further 
 Optional response fields (`getPosition()`, `getSnippet()`, `getDate()`, `getShowingResultsFor()`,
 `getTotalResults()`, `getPagination().getNext()`, `getRelatedSearches()`) return
 `null` when the API omits them.
+
+## Structured data (`/data`)
+
+`data` calls `GET /data` and returns structured JSON for a public page on a
+supported site: pass the page's normal URL and the server detects the site
+(`provider`) and page kind (`type`). Sites today include e.g. YouTube, TikTok,
+X/Twitter, LinkedIn, Instagram and Reddit, but **more sites and page types are
+added on the server**, so the client never checks the URL itself. An
+unsupported URL or page type returns a 400 (`BadRequestException`) that is not
+charged. Its message lists what is supported. `DataOptions` does
+not extend the page-scraping options (`js`, `proxy`, `headers`, … don't apply).
+15 credits per request, including pages that parse empty or no longer exist;
+requests that fail to fetch are not charged.
+
+`data` throws `IllegalArgumentException` for a null or blank `url` before
+sending anything.
+
+```java
+DataResult out = client.data(DataOptions.builder()
+    .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") // required
+    .country("us")                                      // optional
+    .transcript(true)                                   // optional, YouTube videos only
+    .transcriptLanguage("en")                           // optional
+    .build());
+
+System.out.println(out.getRequestParameters().getProvider()); // "youtube"
+System.out.println(out.getRequestParameters().getType());     // "video"
+System.out.println(out.getParseStatus());                     // "ok", "parse_failed" or "not_found"
+if (out.getData() != null) {
+    System.out.println(out.getData().path("title").asText());
+}
+```
+
+- `country`: Two-letter country code of the proxy used to fetch the page, `us`
+  by default. The server checks it and rejects unknown ones with a 400.
+- `transcript`: YouTube videos only. Also fetch the video's transcript into
+  `data.transcript`. It's null when no matching captions are available. If the
+  transcript fetch itself fails, the whole request fails with a 500 and is not
+  charged.
+- `transcriptLanguage`: Caption language to pick, e.g. `en` or `de`. Without
+  it, English is preferred, then the first available track. If the video has no
+  captions in that language, `data.transcript` is null.
+
+`getProvider()`, `getType()` and `getParseStatus()` are plain strings, not
+enums, so values added later come through unchanged. `getData()` is a Jackson
+`JsonNode` (snake_case keys) whose shape depends on the provider and type; it
+is `null` when the API returns `data: null` (possible with `parse_failed` or
+`not_found`, which are still successful, charged requests). Map it onto your
+own class with `new ObjectMapper().treeToValue(out.getData(), MyVideo.class)`.
+
+Parameters a future provider needs can be sent without a client release via
+`.param(key, value)` (or `.params(map)`); values must be a `String`, `Boolean`
+or `Number` and are percent-encoded like everything else. A blank key,
+`api_key` or `url` (any case), or a typed option's name (`country`,
+`transcript`, `transcript_language`, whether or not that option is set) throws
+`IllegalArgumentException`: use the typed setter instead.
+
+```java
+client.data(DataOptions.builder()
+    .url("https://www.tiktok.com/@nasa")
+    .param("some_new_option", "value")
+    .build());
+```
 
 ## Configuration
 
@@ -223,7 +291,7 @@ reproduced by every official SDK:
 ./gradlew checkstyleMain spotbugsMain
 ./gradlew javadoc
 
-# Live smoke test (hits production, ~31 credits per sweep):
+# Live smoke test (hits production, ~46 credits per sweep):
 WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
 ```
 

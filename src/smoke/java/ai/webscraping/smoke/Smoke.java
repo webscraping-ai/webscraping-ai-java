@@ -1,8 +1,9 @@
 /*
  * Hand-run smoke test against the live WebScraping.AI API.
- * Not part of `./gradlew test` — costs ~31 credits per full sweep: page
+ * Not part of `./gradlew test` — costs ~46 credits per full sweep: page
  * tools run with js=false and the datacenter proxy (html/text/selected/
- * selected_multiple 4 x 1, question/fields 2 x 6) plus 15 for the SERP search.
+ * selected_multiple 4 x 1, question/fields 2 x 6) plus 15 for the SERP search
+ * and 15 for one /data call (the /data call on an unsupported URL is a free 400).
  *
  * Each step asserts on the result shape, not just the absence of an
  * exception; any Throwable is reported as a FAIL line (with the API key
@@ -23,6 +24,8 @@ import java.util.regex.Pattern;
 import ai.webscraping.Client;
 import ai.webscraping.Config;
 import ai.webscraping.exception.ApiException;
+import ai.webscraping.exception.BadRequestException;
+import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.FieldsOptions;
 import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
@@ -31,6 +34,7 @@ import ai.webscraping.option.SelectedOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
+import ai.webscraping.result.DataResult;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
 import ai.webscraping.result.SerpResult;
@@ -40,6 +44,8 @@ public final class Smoke {
     private static final String TARGET = "https://example.com";
     private static final String PROXY = "datacenter";
     private static final String SERP_QUERY = "coffee machines";
+    private static final String DATA_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    private static final String DATA_UNSUPPORTED_URL = "https://example.com/";
     private static final Pattern API_KEY_PARAM = Pattern.compile("api_key=[^&\\s\"']*");
 
     private static String apiKey;
@@ -124,6 +130,39 @@ public final class Smoke {
             String top = out.getOrganicResults().get(0).getLink();
             return String.format(Locale.ROOT, "state=%s results=%d top=%s",
                 out.getSearchInformation().getOrganicResultsState(), out.getOrganicResults().size(), top);
+        });
+
+        failures += run("data", () -> {
+            DataResult out = client.data(DataOptions.builder().url(DATA_URL).build());
+            if (!"ok".equals(out.getParseStatus())) {
+                throw new IllegalStateException("parse_status = " + out.getParseStatus() + ", want ok");
+            }
+            String provider = out.getRequestParameters() == null ? null : out.getRequestParameters().getProvider();
+            if (!"youtube".equals(provider)) {
+                throw new IllegalStateException("request_parameters.provider = " + provider + ", want youtube");
+            }
+            if (out.getData() == null) {
+                throw new IllegalStateException("data is null");
+            }
+            String title = out.getData().path("title").asText("");
+            if (title.trim().isEmpty()) {
+                throw new IllegalStateException("data.title is empty");
+            }
+            return String.format(Locale.ROOT, "provider=%s type=%s title=%s",
+                provider, out.getRequestParameters().getType(), title);
+        });
+
+        // No client-side site filter: the server must be the one rejecting this (free 400).
+        failures += run("data_unsupported", () -> {
+            try {
+                DataResult out = client.data(DataOptions.builder().url(DATA_UNSUPPORTED_URL).build());
+                throw new IllegalStateException("expected HTTP 400, got 200: " + out);
+            } catch (BadRequestException e) {
+                if (e.getMessage() == null || !e.getMessage().contains("Unsupported URL")) {
+                    throw new IllegalStateException("400 without the server's Unsupported URL message: " + e.getMessage(), e);
+                }
+                return "server 400: " + e.getMessage();
+            }
         });
 
         if (failures > 0) {

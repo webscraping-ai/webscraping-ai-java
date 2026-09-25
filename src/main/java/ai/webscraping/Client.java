@@ -2,6 +2,7 @@ package ai.webscraping;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -10,6 +11,7 @@ import ai.webscraping.exception.ApiException;
 import ai.webscraping.internal.Json;
 import ai.webscraping.internal.QueryEncoder;
 import ai.webscraping.option.CommonOptions;
+import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.FieldsOptions;
 import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
@@ -18,6 +20,7 @@ import ai.webscraping.option.SelectedOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
+import ai.webscraping.result.DataResult;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
 import ai.webscraping.result.SerpResult;
@@ -41,6 +44,12 @@ import ai.webscraping.result.SerpResult;
  * {@link ai.webscraping.exception.ApiConnectionException}.
  */
 public final class Client {
+
+    /** Wire names of the typed {@link DataOptions} fields, mapped to their builder methods. */
+    private static final Map<String, String> DATA_TYPED_PARAMS = Map.of(
+        "country", "country",
+        "transcript", "transcript",
+        "transcript_language", "transcriptLanguage");
 
     private final Config config;
 
@@ -191,6 +200,67 @@ public final class Client {
         }
         String body = request("/serp", q).getBody();
         return Json.read(body, SerpResult.class);
+    }
+
+    // ---------- /data ----------
+    /**
+     * Structured JSON for a page on a supported site (e.g. a YouTube video, a
+     * TikTok profile, an X post, a LinkedIn company, an Instagram reel or a
+     * Reddit thread). Flat 15 credits per request, including pages that parse
+     * empty ({@code parse_failed}) or no longer exist ({@code not_found});
+     * requests that fail to fetch are not charged. None of the page-scraping
+     * options apply.
+     *
+     * <p>The URL is sent exactly as given and is never checked against a
+     * list of sites: more sites and page types are added on the server. An
+     * unsupported URL or page type throws
+     * {@link ai.webscraping.exception.BadRequestException}: a 400 that is not
+     * charged. Its message lists what is supported.
+     *
+     * @throws IllegalArgumentException if {@code opts.url} is null or blank,
+     *     or an extra param key is blank, is {@code api_key} or {@code url}
+     *     (any case), or names a typed option ({@code country},
+     *     {@code transcript}, {@code transcript_language}), whether or not
+     *     that option is set
+     */
+    public DataResult data(DataOptions opts) {
+        require(opts, "opts");
+        require(opts.getUrl(), "opts.url");
+        if (opts.getUrl().trim().isEmpty()) {
+            throw new IllegalArgumentException("opts.url must not be blank");
+        }
+        QueryEncoder q = new QueryEncoder();
+        q.set("url", opts.getUrl());
+        if (notEmpty(opts.getCountry())) {
+            q.set("country", opts.getCountry());
+        }
+        if (opts.getTranscript() != null) {
+            q.set("transcript", opts.getTranscript());
+        }
+        if (notEmpty(opts.getTranscriptLanguage())) {
+            q.set("transcript_language", opts.getTranscriptLanguage());
+        }
+        for (Map.Entry<String, Object> e : opts.getParams().entrySet()) {
+            String key = e.getKey();
+            if (key == null || key.trim().isEmpty()) {
+                throw new IllegalArgumentException("opts.params keys must not be blank");
+            }
+            String lower = key.toLowerCase(Locale.ROOT);
+            if ("api_key".equals(lower)) {
+                throw new IllegalArgumentException("opts.params must not contain " + key
+                    + "; the API key comes from Config");
+            }
+            if ("url".equals(lower)) {
+                throw new IllegalArgumentException("opts.params must not contain " + key + "; use DataOptions.url");
+            }
+            String typed = DATA_TYPED_PARAMS.get(key);
+            if (typed != null) {
+                throw new IllegalArgumentException("opts.params must not contain " + key + "; use DataOptions." + typed);
+            }
+            q.set(key, e.getValue());
+        }
+        String body = request("/data", q).getBody();
+        return Json.read(body, DataResult.class);
     }
 
     // ---------- /account ----------
