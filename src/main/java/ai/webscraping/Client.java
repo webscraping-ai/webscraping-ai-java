@@ -159,8 +159,9 @@ public final class Client {
      *
      * <p>{@code opts.q} must not be blank and {@code opts.page}, when set,
      * must be at least 1; both are checked before any request (the server
-     * would otherwise coerce an invalid page to 1 and still charge). The
-     * server caps the page at 100. The query is sent exactly as given.
+     * also rejects an invalid page with a 400, not billed; checking
+     * client-side saves the round trip). Pages are 1-100: the server rejects
+     * a page above 100 with a 400. The query is sent exactly as given.
      *
      * @throws IllegalArgumentException if {@code opts.q} is null or blank,
      *     or {@code opts.page} is below 1

@@ -9,7 +9,7 @@ this file.
 
 - `Client.serp(SerpOptions)` for the new `GET /serp` endpoint: parsed Google search results for a query. `SerpOptions` builder takes `q` (required), `engine`, `gl`, `hl`, `page`; it does not extend `CommonOptions` since the page-scraping options don't apply. Returns a typed `SerpResult` (`getSearchParameters()`, `getSearchInformation()`, `getOrganicResults()`, `getRelatedSearches()`, `getPagination()`); optional response fields return `null` when absent. Flat 15 credits per search; failed searches are not charged.
 - `./gradlew smoke` now exercises `serp`.
-- `serp` throws `IllegalArgumentException` for a blank (whitespace-only) `q` and a `page` below 1 before sending a request; the server would otherwise coerce an invalid page to 1 and still charge. `q` is sent untrimmed. The server caps `page` at 100.
+- `serp` throws `IllegalArgumentException` for a blank (whitespace-only) `q` and a `page` below 1 before sending a request; the server also rejects an invalid page with a 400 (not billed), so checking client-side saves the round trip. `q` is sent untrimmed. Pages are 1–100: the server rejects a `page` above 100 with a 400.
 - `SerpResult.OrganicResult.getPosition()` returns `Integer` (`null` when absent) like the other numeric fields, instead of a primitive `int` that turned a missing position into 0.
 - `./gradlew smoke` asserts on results (non-empty page output, at least one non-empty `selectedMultiple` match, `fields` `result` present, `serp` organic results and echoed query), runs page tools with `js=false` and the datacenter proxy (~31 credits per sweep), reports any `Throwable` as a FAIL line, and redacts the API key from output.
 

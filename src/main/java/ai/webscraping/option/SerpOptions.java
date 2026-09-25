@@ -50,8 +50,8 @@ public final class SerpOptions {
 
     /**
      * Results page number, starting at 1 (API default 1, 10 results per page), or
-     * {@code null}. Values below 1 are rejected by the client; the server caps the
-     * page at 100.
+     * {@code null}. Values below 1 are rejected by the client; the server rejects a
+     * page above 100 with a 400 (not billed).
      */
     public Integer getPage() {
         return page;

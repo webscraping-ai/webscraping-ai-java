@@ -118,9 +118,9 @@ URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
 charged.
 
 `serp` throws `IllegalArgumentException` for a null or blank (whitespace-only)
-`q` and for a `page` below 1, before sending anything — the server would
-otherwise silently treat an invalid page as page 1 and still charge for it. The
-server caps `page` at 100.
+`q` and for a `page` below 1, before sending anything. The server also rejects
+an invalid page with a 400 (not billed); checking client-side saves the round
+trip. Pages are 1–100: the server rejects a `page` above 100 with a 400.
 
 ```java
 SerpResult serp = client.serp(SerpOptions.builder()
@@ -128,7 +128,7 @@ SerpResult serp = client.serp(SerpOptions.builder()
     .engine("google")     // optional, default "google" (only engine today)
     .gl("de")             // optional two-letter country, default "us"
     .hl("de")             // optional two-letter language, default "en"
-    .page(2)              // optional, 1-based, 10 results per page (server caps at 100)
+    .page(2)              // optional, 1-based, 10 results per page (server rejects > 100 with a 400)
     .build());
 
 System.out.println(serp.getSearchInformation().getOrganicResultsState()); // "Results for exact spelling"
