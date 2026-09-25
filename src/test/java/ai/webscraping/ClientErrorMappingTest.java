@@ -23,6 +23,7 @@ import ai.webscraping.exception.PaymentRequiredException;
 import ai.webscraping.exception.RateLimitException;
 import ai.webscraping.exception.ServerException;
 import ai.webscraping.option.HtmlOptions;
+import ai.webscraping.option.SerpOptions;
 
 class ClientErrorMappingTest {
 
@@ -118,6 +119,31 @@ class ClientErrorMappingTest {
         ApiException ex = (ApiException) catchThrowable(() -> client.html(opts()));
         assertThat(ex.getClass()).isEqualTo(ApiException.class);
         assertThat(ex.getHttpStatus()).isEqualTo(418);
+    }
+
+    @Test
+    void serpErrorsUseTheSameTypedMapping() {
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(402).withBody("{\"message\":\"quota exceeded\"}")));
+
+        assertThatThrownBy(() -> client.serp(SerpOptions.builder().q("coffee machines").build()))
+            .isInstanceOf(PaymentRequiredException.class)
+            .hasMessageContaining("HTTP 402")
+            .hasMessageContaining("quota exceeded");
+    }
+
+    @Test
+    void serpErrorWithoutScrapingEnvelopeFallsBackToRawBody() {
+        // /serp error bodies need not follow the scraping Error envelope.
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(500).withBody("{\"error\":\"upstream failed\"}")));
+
+        ApiException ex = (ApiException) catchThrowable(() ->
+            client.serp(SerpOptions.builder().q("coffee machines").build()));
+        assertThat(ex).isInstanceOf(ServerException.class);
+        assertThat(ex.getHttpStatus()).isEqualTo(500);
+        assertThat(ex.getMessage()).contains("upstream failed");
+        assertThat(ex.getStatusCode()).isNull();
     }
 
     private static Throwable catchThrowable(Runnable r) {

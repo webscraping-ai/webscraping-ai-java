@@ -15,10 +15,12 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
+import ai.webscraping.result.SerpResult;
 
 /**
  * Official Java client for the WebScraping.AI API.
@@ -147,6 +149,33 @@ public final class Client {
         q.set("fields", opts.getFields());
         String body = request("/ai/fields", q).getBody();
         return Json.read(body, FieldsResult.class);
+    }
+
+    // ---------- /serp ----------
+    /**
+     * Parsed search engine results for {@code opts.q}. Flat 15 credits per
+     * search; failed searches are not charged. Query-shaped: none of the
+     * page-scraping options apply.
+     */
+    public SerpResult serp(SerpOptions opts) {
+        require(opts, "opts");
+        require(opts.getQ(), "opts.q");
+        QueryEncoder q = new QueryEncoder();
+        q.set("q", opts.getQ());
+        if (notEmpty(opts.getEngine())) {
+            q.set("engine", opts.getEngine());
+        }
+        if (notEmpty(opts.getGl())) {
+            q.set("gl", opts.getGl());
+        }
+        if (notEmpty(opts.getHl())) {
+            q.set("hl", opts.getHl());
+        }
+        if (opts.getPage() != null) {
+            q.set("page", opts.getPage());
+        }
+        String body = request("/serp", q).getBody();
+        return Json.read(body, SerpResult.class);
     }
 
     // ---------- /account ----------

@@ -3,6 +3,13 @@
 All notable changes to `ai.webscraping:webscraping-ai` are documented in
 this file.
 
+## 4.1.0 — 2026-09-25
+
+### Added
+
+- `Client.serp(SerpOptions)` for the new `GET /serp` endpoint: parsed Google search results for a query. `SerpOptions` builder takes `q` (required), `engine`, `gl`, `hl`, `page`; it does not extend `CommonOptions` since the page-scraping options don't apply. Returns a typed `SerpResult` (`getSearchParameters()`, `getSearchInformation()`, `getOrganicResults()`, `getRelatedSearches()`, `getPagination()`); optional response fields return `null` when absent. Flat 15 credits per search; failed searches are not charged.
+- `./gradlew smoke` now exercises `serp`.
+
 ## 4.0.2 — 2026-07-17
 
 ### Changed

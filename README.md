@@ -15,7 +15,7 @@ structured field extraction on any page. See the
 
 ```kotlin
 dependencies {
-    implementation("ai.webscraping:webscraping-ai:4.0.2")
+    implementation("ai.webscraping:webscraping-ai:4.1.0")
 }
 ```
 
@@ -23,7 +23,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'ai.webscraping:webscraping-ai:4.0.2'
+    implementation 'ai.webscraping:webscraping-ai:4.1.0'
 }
 ```
 
@@ -33,7 +33,7 @@ dependencies {
 <dependency>
     <groupId>ai.webscraping</groupId>
     <artifactId>webscraping-ai</artifactId>
-    <version>4.0.2</version>
+    <version>4.1.0</version>
 </dependency>
 ```
 
@@ -91,6 +91,11 @@ FieldsResult fields = client.fields(FieldsOptions.builder()
     .addField("price",       "Current product price")
     .build());
 
+// Google search results (flat 15 credits per search)
+SerpResult serp = client.serp(SerpOptions.builder()
+    .q("coffee machines")
+    .build());
+
 // Account quota
 AccountInfo info = client.account();
 System.out.println(info.getEmail() + " — " + info.getRemainingApiCalls() + " remaining");
@@ -103,6 +108,38 @@ directly:
 ```java
 Client client = new Client();   // reads WEBSCRAPING_AI_API_KEY
 ```
+
+## Search engine results (SERP)
+
+`serp` calls `GET /serp` and returns parsed Google results as a typed
+`SerpResult`. It is query-shaped — pass the search query via `q` instead of a
+URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
+`country`, … don't apply). Flat 15 credits per search; failed searches are not
+charged.
+
+```java
+SerpResult serp = client.serp(SerpOptions.builder()
+    .q("coffee machines") // required
+    .engine("google")     // optional, default "google" (only engine today)
+    .gl("de")             // optional two-letter country, default "us"
+    .hl("de")             // optional two-letter language, default "en"
+    .page(2)              // optional, 1-based, 10 results per page
+    .build());
+
+System.out.println(serp.getSearchInformation().getOrganicResultsState()); // "Results for exact spelling"
+for (SerpResult.OrganicResult r : serp.getOrganicResults()) {
+    // position restarts at 1 on every page; (page - 1) * 10 + position is the absolute rank
+    System.out.println(r.getPosition() + " " + r.getTitle() + " " + r.getLink() + " " + r.getDomain());
+}
+if (serp.getRelatedSearches() != null) {
+    serp.getRelatedSearches().forEach(rs -> System.out.println("related: " + rs.getQuery()));
+}
+Integer next = serp.getPagination().getNext(); // null when there is no further page
+```
+
+Optional response fields (`getSnippet()`, `getDate()`, `getShowingResultsFor()`,
+`getTotalResults()`, `getPagination().getNext()`, `getRelatedSearches()`) return
+`null` when the API omits them.
 
 ## Configuration
 
@@ -181,7 +218,7 @@ reproduced by every official SDK:
 ./gradlew checkstyleMain spotbugsMain
 ./gradlew javadoc
 
-# Live smoke test (hits production, ~17 credits per sweep):
+# Live smoke test (hits production, ~32 credits per sweep):
 WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
 ```
 

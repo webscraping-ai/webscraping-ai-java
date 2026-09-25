@@ -12,6 +12,7 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 
 class ClientValidationTest {
@@ -71,5 +72,22 @@ class ClientValidationTest {
                 .build()))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("field");
+    }
+
+    @Test
+    void serpRequiresQ() {
+        assertThatThrownBy(() -> client.serp(SerpOptions.builder().gl("us").build()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("opts.q");
+        assertThatThrownBy(() -> client.serp(SerpOptions.builder().q("").build()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("opts.q");
+    }
+
+    @Test
+    void serpRequiresOpts() {
+        assertThatThrownBy(() -> client.serp(null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("opts");
     }
 }

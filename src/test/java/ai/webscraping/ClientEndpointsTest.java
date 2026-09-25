@@ -29,10 +29,12 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
+import ai.webscraping.result.SerpResult;
 
 class ClientEndpointsTest {
 
@@ -275,5 +277,77 @@ class ClientEndpointsTest {
         String q = lastQueryString();
         assertThat(q).contains("selectors=h1");
         assertThat(q).contains("selectors=.x");
+    }
+
+    @Test
+    void serpReturnsTypedSerpResult() {
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"search_parameters\":{\"engine\":\"google\",\"q\":\"coffee machines\","
+                    + "\"gl\":\"de\",\"hl\":\"de\",\"page\":2},"
+                    + "\"search_information\":{\"query_displayed\":\"coffee machines\","
+                    + "\"organic_results_state\":\"Results for exact spelling\",\"total_results\":160000000},"
+                    + "\"organic_results\":["
+                    + "{\"position\":1,\"title\":\"Best Coffee Machines\",\"link\":\"https://www.example.com/best\","
+                    + "\"domain\":\"example.com\",\"displayed_link\":\"www.example.com › Reviews\","
+                    + "\"snippet\":\"We tested 20 machines\",\"date\":\"Apr 13, 2026\"},"
+                    + "{\"position\":2,\"title\":\"Other\",\"link\":\"https://other.test/\","
+                    + "\"domain\":\"other.test\",\"displayed_link\":\"other.test\"}],"
+                    + "\"related_searches\":[{\"query\":\"best espresso machine\"}],"
+                    + "\"pagination\":{\"current\":2,\"next\":3}}")));
+
+        SerpResult out = client.serp(SerpOptions.builder()
+            .q("coffee machines")
+            .engine("google")
+            .gl("de")
+            .hl("de")
+            .page(2)
+            .build());
+
+        assertThat(lastQueryString())
+            .isEqualTo("api_key=test-key&q=coffee%20machines&engine=google&gl=de&hl=de&page=2");
+
+        assertThat(out.getSearchParameters().getQ()).isEqualTo("coffee machines");
+        assertThat(out.getSearchParameters().getPage()).isEqualTo(2);
+        assertThat(out.getSearchInformation().getOrganicResultsState()).isEqualTo("Results for exact spelling");
+        assertThat(out.getSearchInformation().getShowingResultsFor()).isNull();
+        assertThat(out.getSearchInformation().getTotalResults()).isEqualTo(160000000L);
+
+        assertThat(out.getOrganicResults()).hasSize(2);
+        SerpResult.OrganicResult first = out.getOrganicResults().get(0);
+        assertThat(first.getPosition()).isEqualTo(1);
+        assertThat(first.getDomain()).isEqualTo("example.com");
+        assertThat(first.getDisplayedLink()).isEqualTo("www.example.com › Reviews");
+        assertThat(first.getSnippet()).isEqualTo("We tested 20 machines");
+        assertThat(first.getDate()).isEqualTo("Apr 13, 2026");
+        SerpResult.OrganicResult second = out.getOrganicResults().get(1);
+        assertThat(second.getSnippet()).isNull();
+        assertThat(second.getDate()).isNull();
+
+        assertThat(out.getRelatedSearches()).hasSize(1);
+        assertThat(out.getRelatedSearches().get(0).getQuery()).isEqualTo("best espresso machine");
+        assertThat(out.getPagination().getCurrent()).isEqualTo(2);
+        assertThat(out.getPagination().getNext()).isEqualTo(3);
+    }
+
+    @Test
+    void serpOmitsUnsetOptionalParamsAndHandlesAbsentFields() {
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"search_parameters\":{\"engine\":\"google\",\"q\":\"asdf\",\"gl\":\"us\","
+                    + "\"hl\":\"en\",\"page\":1},\"search_information\":{\"query_displayed\":\"asdf\","
+                    + "\"organic_results_state\":\"Fully empty\"},\"organic_results\":[],"
+                    + "\"pagination\":{\"current\":1}}")));
+
+        SerpResult out = client.serp(SerpOptions.builder().q("asdf").build());
+
+        // Optional params are dropped so the API applies its defaults; no scraping params leak in.
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&q=asdf");
+        assertThat(out.getSearchInformation().getOrganicResultsState()).isEqualTo("Fully empty");
+        assertThat(out.getSearchInformation().getTotalResults()).isNull();
+        assertThat(out.getOrganicResults()).isEmpty();
+        assertThat(out.getRelatedSearches()).isNull();
+        assertThat(out.getPagination().getNext()).isNull();
     }
 }

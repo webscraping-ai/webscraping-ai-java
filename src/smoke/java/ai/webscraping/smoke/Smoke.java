@@ -1,6 +1,7 @@
 /*
  * Hand-run smoke test against the live WebScraping.AI API.
- * Not part of `./gradlew test` — costs ~17 credits per full sweep.
+ * Not part of `./gradlew test` — costs ~32 credits per full sweep (~17 for
+ * the page endpoints plus 15 for the SERP search).
  *
  * Usage:
  *   WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
@@ -20,10 +21,12 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
+import ai.webscraping.result.SerpResult;
 
 public final class Smoke {
 
@@ -80,6 +83,13 @@ public final class Smoke {
                 .fields(fields)
                 .build());
             return out.getResult().toString();
+        });
+
+        failures += run("serp", () -> {
+            SerpResult out = client.serp(SerpOptions.builder().q("coffee machines").build());
+            String top = out.getOrganicResults().isEmpty() ? "" : out.getOrganicResults().get(0).getLink();
+            return String.format(Locale.ROOT, "state=%s results=%d top=%s",
+                out.getSearchInformation().getOrganicResultsState(), out.getOrganicResults().size(), top);
         });
 
         if (failures > 0) {
