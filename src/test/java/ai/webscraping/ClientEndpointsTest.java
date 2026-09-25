@@ -332,6 +332,20 @@ class ClientEndpointsTest {
     }
 
     @Test
+    void serpSendsQueryUntrimmedAndKeepsAbsentPositionNull() {
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"search_parameters\":{\"q\":\" coffee \"},\"search_information\":{},"
+                    + "\"organic_results\":[{\"title\":\"No position\",\"link\":\"https://x.test/\"}],"
+                    + "\"pagination\":{\"current\":1}}")));
+
+        SerpResult out = client.serp(SerpOptions.builder().q(" coffee ").page(1).build());
+
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&q=%20coffee%20&page=1");
+        assertThat(out.getOrganicResults().get(0).getPosition()).isNull();
+    }
+
+    @Test
     void serpOmitsUnsetOptionalParamsAndHandlesAbsentFields() {
         stubFor(get(urlPathEqualTo("/serp"))
             .willReturn(aResponse().withStatus(200)

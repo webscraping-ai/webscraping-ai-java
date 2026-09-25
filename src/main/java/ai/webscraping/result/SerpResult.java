@@ -185,7 +185,7 @@ public final class SerpResult {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static final class OrganicResult {
 
-        private final int position;
+        private final Integer position;
         private final String title;
         private final String link;
         private final String domain;
@@ -194,7 +194,7 @@ public final class SerpResult {
         private final String date;
 
         public OrganicResult(
-            @JsonProperty("position") int position,
+            @JsonProperty("position") Integer position,
             @JsonProperty("title") String title,
             @JsonProperty("link") String link,
             @JsonProperty("domain") String domain,
@@ -212,10 +212,11 @@ public final class SerpResult {
         }
 
         /**
-         * Rank within this page, starting at 1 on every page. Compute
-         * {@code (page - 1) * 10 + position} for an absolute rank.
+         * Rank within this page, starting at 1 on every page, or {@code null}
+         * when the API omits it. Compute {@code (page - 1) * 10 + position}
+         * for an absolute rank.
          */
-        public int getPosition() {
+        public Integer getPosition() {
             return position;
         }
 

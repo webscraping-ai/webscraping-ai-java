@@ -156,10 +156,24 @@ public final class Client {
      * Parsed search engine results for {@code opts.q}. Flat 15 credits per
      * search; failed searches are not charged. Query-shaped: none of the
      * page-scraping options apply.
+     *
+     * <p>{@code opts.q} must not be blank and {@code opts.page}, when set,
+     * must be at least 1; both are checked before any request (the server
+     * would otherwise coerce an invalid page to 1 and still charge). The
+     * server caps the page at 100. The query is sent exactly as given.
+     *
+     * @throws IllegalArgumentException if {@code opts.q} is null or blank,
+     *     or {@code opts.page} is below 1
      */
     public SerpResult serp(SerpOptions opts) {
         require(opts, "opts");
         require(opts.getQ(), "opts.q");
+        if (opts.getQ().trim().isEmpty()) {
+            throw new IllegalArgumentException("opts.q must not be blank");
+        }
+        if (opts.getPage() != null && opts.getPage() < 1) {
+            throw new IllegalArgumentException("opts.page must be >= 1, got " + opts.getPage());
+        }
         QueryEncoder q = new QueryEncoder();
         q.set("q", opts.getQ());
         if (notEmpty(opts.getEngine())) {

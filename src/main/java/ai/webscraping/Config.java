@@ -1,5 +1,6 @@
 package ai.webscraping;
 
+import java.net.URI;
 import java.time.Duration;
 
 /**
@@ -45,11 +46,31 @@ public final class Config {
         while (baseUrl.endsWith("/")) {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
-        this.baseUrl = baseUrl;
+        this.baseUrl = validateBaseUrl(baseUrl);
 
         this.requestTimeout = b.requestTimeout != null ? b.requestTimeout : DEFAULT_REQUEST_TIMEOUT;
         this.transport = b.transport != null ? b.transport : new JdkHttpTransport();
         this.userAgent = b.userAgent != null ? b.userAgent : "webscraping-ai-java/" + Version.VERSION;
+    }
+
+    /**
+     * Rejects a base URL that is not an absolute http(s) URL. Runs before any
+     * {@code api_key} is attached, so the failure can never echo the key.
+     */
+    private static String validateBaseUrl(String baseUrl) {
+        URI uri;
+        try {
+            uri = URI.create(baseUrl);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("baseUrl is not a valid URI: " + e.getMessage());
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null
+            || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+            || uri.getHost() == null) {
+            throw new IllegalArgumentException("baseUrl must be an absolute http(s) URL with a host: " + baseUrl);
+        }
+        return baseUrl;
     }
 
     public static Builder builder() {
@@ -94,7 +115,7 @@ public final class Config {
         }
 
         public Builder baseUrl(String baseUrl) {
-            this.baseUrl = baseUrl;
+            this.baseUrl = validateBaseUrl(baseUrl);
             return this;
         }
 

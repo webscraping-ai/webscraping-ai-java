@@ -1,8 +1,10 @@
 package ai.webscraping;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,6 +84,40 @@ class ClientValidationTest {
         assertThatThrownBy(() -> client.serp(SerpOptions.builder().q("").build()))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("opts.q");
+    }
+
+    @Test
+    void serpRejectsBlankQBeforeAnyRequest() {
+        Client counting = countingClient();
+        for (String q : new String[] {" ", "\t\n  "}) {
+            assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q(q).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.q");
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void serpRejectsPageBelowOneBeforeAnyRequest() {
+        Client counting = countingClient();
+        for (int page : new int[] {0, -1, Integer.MIN_VALUE}) {
+            assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q("coffee").page(page).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.page");
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    private final AtomicInteger requests = new AtomicInteger();
+
+    private Client countingClient() {
+        return new Client(Config.builder()
+            .apiKey("test-key")
+            .transport(req -> {
+                requests.incrementAndGet();
+                return new Transport.Response(200, "{}");
+            })
+            .build());
     }
 
     @Test

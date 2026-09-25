@@ -28,7 +28,7 @@ public final class SerpOptions {
         return new Builder();
     }
 
-    /** The search query. Required. */
+    /** The search query. Required and must not be blank; sent as given (not trimmed). */
     public String getQ() {
         return q;
     }
@@ -48,7 +48,11 @@ public final class SerpOptions {
         return hl;
     }
 
-    /** Results page number, starting at 1 (API default 1, 10 results per page), or {@code null}. */
+    /**
+     * Results page number, starting at 1 (API default 1, 10 results per page), or
+     * {@code null}. Values below 1 are rejected by the client; the server caps the
+     * page at 100.
+     */
     public Integer getPage() {
         return page;
     }

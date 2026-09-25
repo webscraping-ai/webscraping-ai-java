@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import ai.webscraping.exception.ApiConnectionException;
 import ai.webscraping.exception.ApiTimeoutException;
@@ -33,9 +34,17 @@ public final class JdkHttpTransport implements Transport {
 
     @Override
     public Response execute(Request request) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-            .uri(URI.create(request.getUrl()))
-            .GET();
+        HttpRequest.Builder builder;
+        try {
+            builder = HttpRequest.newBuilder()
+                .uri(URI.create(request.getUrl()))
+                .GET();
+        } catch (IllegalArgumentException e) {
+            // The URI message embeds the full URL, api_key included, so neither
+            // it nor the exception is kept.
+            throw new ApiConnectionException(
+                "Request to " + redactUrl(request.getUrl()) + " failed: invalid URL", null);
+        }
 
         Duration timeout = request.getTimeout();
         if (timeout != null && !timeout.isZero() && !timeout.isNegative()) {
@@ -53,15 +62,46 @@ public final class JdkHttpTransport implements Transport {
             );
             return new Response(resp.statusCode(), resp.body());
         } catch (HttpTimeoutException e) {
-            throw new ApiTimeoutException("Request to " + redactUrl(request.getUrl()) + " timed out", e);
+            throw new ApiTimeoutException(
+                "Request to " + redactUrl(request.getUrl()) + " timed out", safeCause(e));
         } catch (IOException e) {
             throw new ApiConnectionException(
-                "Request to " + redactUrl(request.getUrl()) + " failed: " + e.getMessage(), e);
+                "Request to " + redactUrl(request.getUrl()) + " failed: " + redactMessage(e.getMessage()),
+                safeCause(e));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ApiConnectionException(
-                "Request to " + redactUrl(request.getUrl()) + " was interrupted", e);
+                "Request to " + redactUrl(request.getUrl()) + " was interrupted", safeCause(e));
         }
+    }
+
+    private static final Pattern API_KEY_PARAM = Pattern.compile("api_key=[^&\\s\"']*");
+
+    /** Replaces any {@code api_key=...} occurrence in a message. */
+    static String redactMessage(String message) {
+        if (message == null) {
+            return null;
+        }
+        return API_KEY_PARAM.matcher(message).replaceAll("api_key=REDACTED");
+    }
+
+    /**
+     * Returns {@code e} as an exception cause unless something in its cause
+     * chain mentions {@code api_key}, in which case the cause is dropped
+     * rather than risk exposing the key through {@code getCause()} or a stack
+     * trace.
+     */
+    static Throwable safeCause(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String m = t.getMessage();
+            if (m != null && m.contains("api_key=")) {
+                return null;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return e;
     }
 
     /**

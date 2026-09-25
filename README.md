@@ -117,13 +117,18 @@ URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
 `country`, … don't apply). Flat 15 credits per search; failed searches are not
 charged.
 
+`serp` throws `IllegalArgumentException` for a null or blank (whitespace-only)
+`q` and for a `page` below 1, before sending anything — the server would
+otherwise silently treat an invalid page as page 1 and still charge for it. The
+server caps `page` at 100.
+
 ```java
 SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines") // required
     .engine("google")     // optional, default "google" (only engine today)
     .gl("de")             // optional two-letter country, default "us"
     .hl("de")             // optional two-letter language, default "en"
-    .page(2)              // optional, 1-based, 10 results per page
+    .page(2)              // optional, 1-based, 10 results per page (server caps at 100)
     .build());
 
 System.out.println(serp.getSearchInformation().getOrganicResultsState()); // "Results for exact spelling"
@@ -137,7 +142,7 @@ if (serp.getRelatedSearches() != null) {
 Integer next = serp.getPagination().getNext(); // null when there is no further page
 ```
 
-Optional response fields (`getSnippet()`, `getDate()`, `getShowingResultsFor()`,
+Optional response fields (`getPosition()`, `getSnippet()`, `getDate()`, `getShowingResultsFor()`,
 `getTotalResults()`, `getPagination().getNext()`, `getRelatedSearches()`) return
 `null` when the API omits them.
 
@@ -218,7 +223,7 @@ reproduced by every official SDK:
 ./gradlew checkstyleMain spotbugsMain
 ./gradlew javadoc
 
-# Live smoke test (hits production, ~32 credits per sweep):
+# Live smoke test (hits production, ~31 credits per sweep):
 WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
 ```
 
