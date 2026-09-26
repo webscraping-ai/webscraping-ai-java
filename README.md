@@ -41,8 +41,8 @@ Requires **Java 11 or newer**. Single runtime dependency: `jackson-databind`.
 
 ## Quick start
 
-[Sign up](https://webscraping.ai/auth/sign_up) to get an API key — the free
-trial includes 2,000 credits, no credit card required. Your key lives in the
+[Sign up](https://webscraping.ai/auth/sign_up) to get an API key — a free
+trial, no credit card required. Your key lives in the
 [dashboard](https://webscraping.ai/dashboard).
 
 ```java
@@ -91,12 +91,12 @@ FieldsResult fields = client.fields(FieldsOptions.builder()
     .addField("price",       "Current product price")
     .build());
 
-// Google search results (flat 15 credits per search)
+// Google search results
 SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines")
     .build());
 
-// Structured data for a page on a supported site (flat 15 credits)
+// Structured data for a page on a supported site
 DataResult video = client.data(DataOptions.builder()
     .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
     .build());
@@ -119,8 +119,8 @@ Client client = new Client();   // reads WEBSCRAPING_AI_API_KEY
 `serp` calls `GET /serp` and returns parsed Google results as a typed
 `SerpResult`. It is query-shaped — pass the search query via `q` instead of a
 URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
-`country`, … don't apply). Flat 15 credits per search; failed searches are not
-charged.
+`country`, … don't apply). Priced per search (see
+[pricing](https://webscraping.ai/docs#serp)); failed searches are not charged.
 
 `serp` throws `IllegalArgumentException` for a null or blank (whitespace-only)
 `q` and for a `page` below 1, before sending anything. The server also rejects
@@ -161,8 +161,9 @@ added on the server**, so the client never checks the URL itself. An
 unsupported URL or page type returns a 400 (`BadRequestException`) that is not
 charged. Its message lists what is supported. `DataOptions` does
 not extend the page-scraping options (`js`, `proxy`, `headers`, … don't apply).
-15 credits per request, including pages that parse empty or no longer exist;
-requests that fail to fetch are not charged.
+Priced per site (see [pricing](https://webscraping.ai/docs#data)), including
+pages that parse empty or no longer exist; unsupported URLs and requests that
+fail to fetch are not charged.
 
 `data` throws `IllegalArgumentException` for a null or blank `url` before
 sending anything.

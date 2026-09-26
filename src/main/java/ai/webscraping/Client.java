@@ -162,8 +162,8 @@ public final class Client {
 
     // ---------- /serp ----------
     /**
-     * Parsed search engine results for {@code opts.q}. Flat 15 credits per
-     * search; failed searches are not charged. Query-shaped: none of the
+     * Parsed search engine results for {@code opts.q}. Priced per search
+     * (see https://webscraping.ai/docs#serp); failed searches are not charged. Query-shaped: none of the
      * page-scraping options apply.
      *
      * <p>{@code opts.q} must not be blank and {@code opts.page}, when set,
@@ -206,10 +206,11 @@ public final class Client {
     /**
      * Structured JSON for a page on a supported site (e.g. a YouTube video, a
      * TikTok profile, an X post, a LinkedIn company, an Instagram reel or a
-     * Reddit thread). Flat 15 credits per request, including pages that parse
-     * empty ({@code parse_failed}) or no longer exist ({@code not_found});
-     * requests that fail to fetch are not charged. None of the page-scraping
-     * options apply.
+     * Reddit thread). Priced per site (see https://webscraping.ai/docs#data),
+     * including pages that parse empty ({@code parse_failed}) or no longer
+     * exist ({@code not_found}); unsupported URLs and requests that fail to
+     * fetch are not charged. None
+     * of the page-scraping options apply.
      *
      * <p>The URL is sent exactly as given and is never checked against a
      * list of sites: more sites and page types are added on the server. An
