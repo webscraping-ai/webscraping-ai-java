@@ -15,7 +15,7 @@ structured field extraction on any page. See the
 
 ```kotlin
 dependencies {
-    implementation("ai.webscraping:webscraping-ai:4.2.0")
+    implementation("ai.webscraping:webscraping-ai:4.3.0")
 }
 ```
 
@@ -23,7 +23,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'ai.webscraping:webscraping-ai:4.2.0'
+    implementation 'ai.webscraping:webscraping-ai:4.3.0'
 }
 ```
 
@@ -33,7 +33,7 @@ dependencies {
 <dependency>
     <groupId>ai.webscraping</groupId>
     <artifactId>webscraping-ai</artifactId>
-    <version>4.2.0</version>
+    <version>4.3.0</version>
 </dependency>
 ```
 
@@ -119,19 +119,26 @@ Client client = new Client();   // reads WEBSCRAPING_AI_API_KEY
 `serp` calls `GET /serp` and returns parsed Google results as a typed
 `SerpResult`. It is query-shaped — pass the search query via `q` instead of a
 URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
-`country`, … don't apply). Priced per search (see
+`country`, … don't apply). Billed per results page returned (see
 [pricing](https://webscraping.ai/docs#serp)); failed searches are not charged.
 
+Every search runs from one fixed location — `location`, `lat` + `lon` or
+`uule`, otherwise the capital of the `gl` country — so repeats and later pages
+are consistent; `gl` defaults to the location's country. `pages` (1–5) fetches
+consecutive pages, starting at `page`, as one de-duplicated list, billed per
+page returned.
+
 `serp` throws `IllegalArgumentException` for a null or blank (whitespace-only)
-`q` and for a `page` below 1, before sending anything. The server also rejects
-an invalid page with a 400 (not billed); checking client-side saves the round
-trip. Pages are 1–100: the server rejects a `page` above 100 with a 400.
+`q`, for a `page`, `pages` or `radius` below 1, and for a NaN or infinite
+`lat`/`lon`, before sending anything; checking client-side saves the round
+trip. Upper bounds (`page` 100, `pages` 5, `radius` 1000) and which location
+options may be combined are checked by the server: a 400, not billed.
 
 ```java
 SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines") // required
     .engine("google")     // optional, default "google" (only engine today)
-    .gl("de")             // optional two-letter country, default "us"
+    .gl("de")             // optional two-letter country, default: the location's country, otherwise "us"
     .hl("de")             // optional two-letter language, default "en"
     .page(2)              // optional, 1-based, 10 results per page (server rejects > 100 with a 400)
     .build());
@@ -147,9 +154,57 @@ if (serp.getRelatedSearches() != null) {
 Integer next = serp.getPagination().getNext(); // null when there is no further page
 ```
 
+Search from a location and fetch two pages in one call:
+
+```java
+SerpResult serp = client.serp(SerpOptions.builder()
+    .q("coffee machines")
+    .location("Austin, TX") // or a canonical name / id from serpLocations, or .lat(30.2672).lon(-97.7431), or .uule(...)
+    .pages(2)               // optional, 1-5 consecutive pages as one de-duplicated list
+    .build());
+
+System.out.println(serp.getSearchParameters().getLocationUsed()); // "Austin,Texas,United States"
+System.out.println(serp.getPagination().getPagesReturned());      // 2
+for (SerpResult.OrganicResult r : serp.getOrganicResults()) {
+    // with pages > 1, position counts through the combined list (1..N) and page says where it came from
+    System.out.println(r.getPage() + " " + r.getPosition() + " " + r.getTitle());
+}
+```
+
+`lat`/`lon` are sent as plain decimals rounded to 7 fractional digits (e.g.
+`0.0000001`, never `1.0E-7`). `location` and `uule` are sent exactly as given.
+
 Optional response fields (`getPosition()`, `getSnippet()`, `getDate()`, `getShowingResultsFor()`,
-`getTotalResults()`, `getPagination().getNext()`, `getRelatedSearches()`) return
-`null` when the API omits them.
+`getTotalResults()`, `getPagination().getNext()`, `getRelatedSearches()`, and the
+location/multi-page fields `getPages()`, `getLocationRequested()`, `getLocationUsed()`,
+`getLat()`, `getLon()`, `getRadius()`, `OrganicResult.getPage()`,
+`getPagination().getPagesReturned()`) return `null` when the API omits them.
+
+### Search locations
+
+`serpLocations` calls `GET /serp/locations` to look up names for `location`:
+up to 10 matching locations, most populous first. It matches English names
+(e.g. `petersburg`); `/serp`'s `location` also accepts local-language names
+of large cities. The endpoint is free and needs no API key. `limit` below 1
+throws `IllegalArgumentException`; the server rejects more than 10 with a 400.
+
+```java
+List<SerpLocation> locations = client.serpLocations(SerpLocationsOptions.builder()
+    .q("austin") // optional; without it, the most populous locations
+    .limit(3)    // optional, 1-10 (default 10)
+    .build());
+
+SerpLocation austin = locations.get(0);
+System.out.println(austin.getCanonicalName()); // "Austin,Texas,United States"
+System.out.println(austin.getTargetType());    // "City" (an open string, not an enum)
+System.out.println(austin.getGps());           // [-97.7431, 30.2672] = [longitude, latitude]
+
+// Pass canonical_name (or id) as location
+client.serp(SerpOptions.builder().q("coffee machines").location(austin.getCanonicalName()).build());
+```
+
+`getGoogleId()`, `getGoogleParentId()` and `getReach()` are `Long`;
+`getGoogleParentId()` is `null` for countries.
 
 ## Structured data (`/data`)
 
@@ -292,7 +347,7 @@ reproduced by every official SDK:
 ./gradlew checkstyleMain spotbugsMain
 ./gradlew javadoc
 
-# Live smoke test (hits production, ~46 credits per sweep):
+# Live smoke test (hits production and is billed: 12 calls, SERP billed per page returned):
 WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
 ```
 

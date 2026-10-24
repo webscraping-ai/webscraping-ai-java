@@ -15,6 +15,7 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpLocationsOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 
@@ -105,6 +106,57 @@ class ClientValidationTest {
             assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q("coffee").page(page).build()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("opts.page");
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void serpRejectsPagesAndRadiusBelowOneBeforeAnyRequest() {
+        Client counting = countingClient();
+        for (int n : new int[] {0, -1, Integer.MIN_VALUE}) {
+            assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q("coffee").pages(n).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.pages");
+            assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q("coffee").location("Austin")
+                .radius(n).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.radius");
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void serpRejectsNonFiniteLatLonBeforeAnyRequest() {
+        Client counting = countingClient();
+        for (double v : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q("coffee").lat(v).lon(1).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.lat");
+            assertThatThrownBy(() -> counting.serp(SerpOptions.builder().q("coffee").lat(1).lon(v).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.lon");
+        }
+        assertThat(requests.get()).isZero();
+    }
+
+    @Test
+    void serpLeavesUpperBoundsAndLocationCombinationsToTheServer() {
+        Client counting = countingClient();
+        counting.serp(SerpOptions.builder().q("coffee").page(100).pages(5).radius(5000)
+            .location("Austin").uule("w+x").lat(91).lon(-181).build());
+        assertThat(requests.get()).isEqualTo(1);
+    }
+
+    @Test
+    void serpLocationsRejectsNullOptsAndLimitBelowOneBeforeAnyRequest() {
+        Client counting = countingClient();
+        assertThatThrownBy(() -> counting.serpLocations(null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("opts");
+        for (int n : new int[] {0, -1, Integer.MIN_VALUE}) {
+            assertThatThrownBy(() -> counting.serpLocations(SerpLocationsOptions.builder().q("austin").limit(n).build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("opts.limit");
         }
         assertThat(requests.get()).isZero();
     }

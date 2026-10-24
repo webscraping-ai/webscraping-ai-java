@@ -1,5 +1,7 @@
 package ai.webscraping;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -17,12 +19,14 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpLocationsOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
 import ai.webscraping.result.DataResult;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
+import ai.webscraping.result.SerpLocation;
 import ai.webscraping.result.SerpResult;
 
 /**
@@ -162,18 +166,27 @@ public final class Client {
 
     // ---------- /serp ----------
     /**
-     * Parsed search engine results for {@code opts.q}. Priced per search
-     * (see https://webscraping.ai/docs#serp); failed searches are not charged. Query-shaped: none of the
-     * page-scraping options apply.
+     * Parsed search engine results for {@code opts.q}. Billed per results
+     * page returned (see https://webscraping.ai/docs#serp); failed searches
+     * are not charged. Query-shaped: none of the page-scraping options apply.
      *
-     * <p>{@code opts.q} must not be blank and {@code opts.page}, when set,
-     * must be at least 1; both are checked before any request (the server
-     * also rejects an invalid page with a 400, not billed; checking
-     * client-side saves the round trip). Pages are 1-100: the server rejects
-     * a page above 100 with a 400. The query is sent exactly as given.
+     * <p>Every search runs from one fixed location ({@code location},
+     * {@code lat} + {@code lon} or {@code uule}, otherwise the capital of the
+     * {@code gl} country), so repeats and later pages are consistent.
+     * {@code pages} (1-5) fetches consecutive pages as one de-duplicated list.
+     *
+     * <p>{@code opts.q} must not be blank, {@code opts.page},
+     * {@code opts.pages} and {@code opts.radius}, when set, must be at least
+     * 1, and {@code opts.lat}/{@code opts.lon} must be finite; all are
+     * checked before any request (checking client-side saves the round
+     * trip). Upper bounds (page 100, pages 5, radius 1000) and which location
+     * options may be combined are checked by the server: a 400, not billed.
+     * The query and location are sent exactly as given; lat/lon are sent as
+     * plain decimals rounded to 7 fractional digits.
      *
      * @throws IllegalArgumentException if {@code opts.q} is null or blank,
-     *     or {@code opts.page} is below 1
+     *     {@code opts.page}, {@code opts.pages} or {@code opts.radius} is
+     *     below 1, or {@code opts.lat} or {@code opts.lon} is NaN or infinite
      */
     public SerpResult serp(SerpOptions opts) {
         require(opts, "opts");
@@ -184,6 +197,14 @@ public final class Client {
         if (opts.getPage() != null && opts.getPage() < 1) {
             throw new IllegalArgumentException("opts.page must be >= 1, got " + opts.getPage());
         }
+        if (opts.getPages() != null && opts.getPages() < 1) {
+            throw new IllegalArgumentException("opts.pages must be >= 1, got " + opts.getPages());
+        }
+        if (opts.getRadius() != null && opts.getRadius() < 1) {
+            throw new IllegalArgumentException("opts.radius must be >= 1, got " + opts.getRadius());
+        }
+        requireFinite(opts.getLat(), "opts.lat");
+        requireFinite(opts.getLon(), "opts.lon");
         QueryEncoder q = new QueryEncoder();
         q.set("q", opts.getQ());
         if (notEmpty(opts.getEngine())) {
@@ -198,8 +219,58 @@ public final class Client {
         if (opts.getPage() != null) {
             q.set("page", opts.getPage());
         }
+        if (opts.getPages() != null) {
+            q.set("pages", opts.getPages());
+        }
+        if (notEmpty(opts.getLocation())) {
+            q.set("location", opts.getLocation());
+        }
+        if (notEmpty(opts.getUule())) {
+            q.set("uule", opts.getUule());
+        }
+        if (opts.getLat() != null) {
+            q.set("lat", formatCoordinate(opts.getLat()));
+        }
+        if (opts.getLon() != null) {
+            q.set("lon", formatCoordinate(opts.getLon()));
+        }
+        if (opts.getRadius() != null) {
+            q.set("radius", opts.getRadius());
+        }
         String body = request("/serp", q).getBody();
         return Json.read(body, SerpResult.class);
+    }
+
+    // ---------- /serp/locations ----------
+    /**
+     * Looks up names for {@link SerpOptions.Builder#location(String)}: up to
+     * 10 matching locations, most populous first. Pass a result's
+     * {@link SerpLocation#getCanonicalName()} (or {@link SerpLocation#getId()})
+     * as the {@code location}. Matches English names (e.g. {@code petersburg}).
+     * Free on the server, which needs no API key for it.
+     *
+     * @throws IllegalArgumentException if {@code opts} is null or
+     *     {@code opts.limit} is below 1 (the server rejects more than 10 with a 400)
+     */
+    public List<SerpLocation> serpLocations(SerpLocationsOptions opts) {
+        require(opts, "opts");
+        if (opts.getLimit() != null && opts.getLimit() < 1) {
+            throw new IllegalArgumentException("opts.limit must be >= 1, got " + opts.getLimit());
+        }
+        QueryEncoder q = new QueryEncoder();
+        if (notEmpty(opts.getQ())) {
+            q.set("q", opts.getQ());
+        }
+        if (opts.getLimit() != null) {
+            q.set("limit", opts.getLimit());
+        }
+        String body = request("/serp/locations", q).getBody();
+        return Json.read(body, new TypeReference<List<SerpLocation>>() {});
+    }
+
+    /** The most populous locations; see {@link #serpLocations(SerpLocationsOptions)}. */
+    public List<SerpLocation> serpLocations() {
+        return serpLocations(SerpLocationsOptions.builder().build());
     }
 
     // ---------- /data ----------
@@ -348,6 +419,26 @@ public final class Client {
             q.set("js_script", c.getJsScript());
         }
         return q;
+    }
+
+    private static void requireFinite(Double value, String name) {
+        if (value != null && (value.isNaN() || value.isInfinite())) {
+            throw new IllegalArgumentException(name + " must be a finite number, got " + value);
+        }
+    }
+
+    /**
+     * Plain decimal with at most 7 fractional digits and no trailing zeros
+     * ({@code 1e-7} becomes {@code 0.0000001}, {@code 48.0} becomes {@code 48}):
+     * the server accepts only {@code -?\d+(\.\d+)?}, which
+     * {@code Double.toString} breaks for small and large values.
+     */
+    static String formatCoordinate(double value) {
+        BigDecimal d = BigDecimal.valueOf(value).setScale(7, RoundingMode.HALF_UP);
+        if (d.signum() == 0) {
+            return "0";
+        }
+        return d.stripTrailingZeros().toPlainString();
     }
 
     private static boolean notEmpty(String s) {

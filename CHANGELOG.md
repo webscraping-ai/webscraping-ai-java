@@ -3,7 +3,14 @@
 All notable changes to `ai.webscraping:webscraping-ai` are documented in
 this file.
 
-## Unreleased
+## 4.3.0 — 2026-10-24
+### Added
+
+- `SerpOptions` gains `pages`, `location`, `uule`, `lat`, `lon` and `radius`. Every search runs from one fixed location (`location`, `lat` + `lon` or `uule`, otherwise the capital of the `gl` country), so repeats and later pages are consistent; `gl` defaults to the location's country. `pages` (1–5) fetches consecutive pages as one de-duplicated list, billed per results page returned (see https://webscraping.ai/docs#serp). `location` and `uule` are sent as given; `lat`/`lon` are sent as plain decimals rounded to 7 fractional digits (never exponent notation). `serp` throws `IllegalArgumentException` for a `pages` or `radius` below 1 and a NaN or infinite `lat`/`lon` before sending; upper bounds and which location options may be combined are left to the server (a 400, not billed).
+- `SerpResult` gains `SearchParameters.getPages()`, `getLocationRequested()`, `getLocationUsed()`, `getLat()`, `getLon()`, `getRadius()`, `OrganicResult.getPage()` and `Pagination.getPagesReturned()`, all `null` when absent. With `pages` above 1, `position` counts through the combined list. The previous public constructors are kept.
+- `Client.serpLocations(SerpLocationsOptions)` (and a no-arg `serpLocations()`) for the new `GET /serp/locations` endpoint: look up names for `location`. `SerpLocationsOptions` takes `q` and `limit` (`limit` below 1 throws `IllegalArgumentException`). Returns `List<SerpLocation>` with `getId()` (string), `getGoogleId()`/`getGoogleParentId()`/`getReach()` (`Long`, parent `null` for countries), `getName()`, `getCanonicalName()`, `getCountryCode()`, `getTargetType()` (an open string) and `getGps()` (`[longitude, latitude]`). Free; no API key needed on the server.
+- `./gradlew smoke` adds a two-page `serp` from `Austin, TX` (asserts `location_used` contains Austin and non-empty organic results) and `serpLocations("austin", limit 3)` (asserts the first `canonical_name` contains Austin).
+
 ### Changed
 
 - Docs: stop stating credit prices (they're set server-side and change); link to https://webscraping.ai/docs pricing instead.

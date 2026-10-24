@@ -30,12 +30,14 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpLocationsOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
 import ai.webscraping.result.DataResult;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
+import ai.webscraping.result.SerpLocation;
 import ai.webscraping.result.SerpResult;
 
 class ClientEndpointsTest {
@@ -366,6 +368,140 @@ class ClientEndpointsTest {
         assertThat(out.getOrganicResults()).isEmpty();
         assertThat(out.getRelatedSearches()).isNull();
         assertThat(out.getPagination().getNext()).isNull();
+    }
+
+    @Test
+    void serpSendsLocationAndPagesAndParsesMultiPageFields() {
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"search_parameters\":{\"engine\":\"google\",\"q\":\"coffee machines\","
+                    + "\"gl\":\"us\",\"hl\":\"en\",\"page\":1,\"pages\":2,"
+                    + "\"location_requested\":\"Austin, TX\",\"location_used\":\"Austin,Texas,United States\","
+                    + "\"lat\":30.2672,\"lon\":-97.7431,\"radius\":500},"
+                    + "\"search_information\":{\"organic_results_state\":\"Results for exact spelling\"},"
+                    + "\"organic_results\":["
+                    + "{\"position\":1,\"title\":\"A\",\"link\":\"https://a.test/\",\"page\":1},"
+                    + "{\"position\":11,\"title\":\"B\",\"link\":\"https://b.test/\",\"page\":2}],"
+                    + "\"pagination\":{\"current\":2,\"next\":3,\"pages_returned\":2}}")));
+
+        SerpResult out = client.serp(SerpOptions.builder()
+            .q("coffee machines")
+            .location("Austin, TX")
+            .pages(2)
+            .radius(500)
+            .build());
+
+        assertThat(lastQueryString())
+            .isEqualTo("api_key=test-key&q=coffee%20machines&pages=2&location=Austin%2C%20TX&radius=500");
+
+        SerpResult.SearchParameters sp = out.getSearchParameters();
+        assertThat(sp.getPages()).isEqualTo(2);
+        assertThat(sp.getLocationRequested()).isEqualTo("Austin, TX");
+        assertThat(sp.getLocationUsed()).isEqualTo("Austin,Texas,United States");
+        assertThat(sp.getRadius()).isEqualTo(500);
+        assertThat(sp.getLat()).isEqualTo(30.2672);
+        assertThat(sp.getLon()).isEqualTo(-97.7431);
+        assertThat(out.getOrganicResults().get(0).getPage()).isEqualTo(1);
+        assertThat(out.getOrganicResults().get(1).getPage()).isEqualTo(2);
+        assertThat(out.getOrganicResults().get(1).getPosition()).isEqualTo(11);
+        assertThat(out.getPagination().getPagesReturned()).isEqualTo(2);
+    }
+
+    @Test
+    void serpSendsUuleAndLocationUntrimmedAndLeavesSinglePageFieldsNull() {
+        stubFor(get(urlPathEqualTo("/serp"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"search_parameters\":{\"q\":\"x\",\"lat\":30.2672,\"lon\":-97.7431},"
+                    + "\"organic_results\":[{\"position\":1}],\"pagination\":{\"current\":1}}")));
+
+        client.serp(SerpOptions.builder().q("x").uule("w+CAIQICIGQXVzdGlu").build());
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&q=x&uule=w%2BCAIQICIGQXVzdGlu");
+
+        client.serp(SerpOptions.builder().q("x").location(" \u041c\u043e\u0441\u043a\u0432\u0430 ").build());
+        verify(getRequestedFor(urlPathEqualTo("/serp"))
+            .withQueryParam("location", equalTo(" \u041c\u043e\u0441\u043a\u0432\u0430 ")));
+
+        SerpResult out = client.serp(SerpOptions.builder().q("x").lat(30.2672).lon(-97.7431).build());
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&q=x&lat=30.2672&lon=-97.7431");
+        assertThat(out.getSearchParameters().getLat()).isEqualTo(30.2672);
+        assertThat(out.getSearchParameters().getLon()).isEqualTo(-97.7431);
+        assertThat(out.getSearchParameters().getPages()).isNull();
+        assertThat(out.getSearchParameters().getLocationUsed()).isNull();
+        assertThat(out.getOrganicResults().get(0).getPage()).isNull();
+        assertThat(out.getPagination().getPagesReturned()).isNull();
+    }
+
+    @Test
+    void serpSendsLatLonAsPlainDecimals() {
+        stubFor(get(urlPathEqualTo("/serp")).willReturn(aResponse().withStatus(200).withBody("{}")));
+
+        // Double.toString would give 1.0E-7, 1.0E-5, 48.0, -0.0, 1.0E20 - all rejected by the server.
+        double[][] cases = {
+            {1e-7, 1e-5}, {1e-9, -1e-9}, {48, -97}, {-0.0, 0.0}, {0.00000005, -0.00000005},
+            {30.26721234, -97.74319999}, {89.9999999, -180}, {1e20, 12.5},
+        };
+        String[][] want = {
+            {"0.0000001", "0.00001"}, {"0", "0"}, {"48", "-97"}, {"0", "0"}, {"0.0000001", "-0.0000001"},
+            {"30.2672123", "-97.7432"}, {"89.9999999", "-180"}, {"100000000000000000000", "12.5"},
+        };
+        java.util.Locale saved = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.GERMANY); // decimal comma must not leak in
+            for (int i = 0; i < cases.length; i++) {
+                client.serp(SerpOptions.builder().q("x").lat(cases[i][0]).lon(cases[i][1]).build());
+                assertThat(lastQueryString())
+                    .as("lat=%s lon=%s", cases[i][0], cases[i][1])
+                    .isEqualTo("api_key=test-key&q=x&lat=" + want[i][0] + "&lon=" + want[i][1]);
+            }
+        } finally {
+            java.util.Locale.setDefault(saved);
+        }
+    }
+
+    @Test
+    void serpLocationsEncodesQueryAndReturnsTypedLocations() {
+        stubFor(get(urlPathEqualTo("/serp/locations"))
+            .willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody("[{\"id\":\"1026201\",\"google_id\":1026201,\"google_parent_id\":21176,"
+                    + "\"name\":\"Austin\",\"canonical_name\":\"Austin,Texas,United States\","
+                    + "\"country_code\":\"US\",\"target_type\":\"City\",\"reach\":974447,"
+                    + "\"gps\":[-97.7431,30.2672]},"
+                    + "{\"id\":\"2840\",\"google_id\":2840,\"name\":\"United States\","
+                    + "\"canonical_name\":\"United States\",\"country_code\":\"US\","
+                    + "\"target_type\":\"Neighborhood Cluster\",\"reach\":9000000000,\"future\":1}]")));
+
+        List<SerpLocation> out = client.serpLocations(SerpLocationsOptions.builder().q("san antonio").limit(3).build());
+
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&q=san%20antonio&limit=3");
+        assertThat(out).hasSize(2);
+        SerpLocation austin = out.get(0);
+        assertThat(austin.getId()).isEqualTo("1026201");
+        assertThat(austin.getGoogleId()).isEqualTo(1026201L);
+        assertThat(austin.getGoogleParentId()).isEqualTo(21176L);
+        assertThat(austin.getName()).isEqualTo("Austin");
+        assertThat(austin.getCanonicalName()).isEqualTo("Austin,Texas,United States");
+        assertThat(austin.getCountryCode()).isEqualTo("US");
+        assertThat(austin.getTargetType()).isEqualTo("City");
+        assertThat(austin.getReach()).isEqualTo(974447L);
+        assertThat(austin.getGps()).containsExactly(-97.7431, 30.2672);
+        SerpLocation country = out.get(1);
+        assertThat(country.getGoogleParentId()).isNull();
+        assertThat(country.getGps()).isNull();
+        // Open string, not an enum; reach is 64-bit.
+        assertThat(country.getTargetType()).isEqualTo("Neighborhood Cluster");
+        assertThat(country.getReach()).isEqualTo(9000000000L);
+    }
+
+    @Test
+    void serpLocationsOmitsUnsetParams() {
+        stubFor(get(urlPathEqualTo("/serp/locations")).willReturn(aResponse().withStatus(200).withBody("[]")));
+
+        assertThat(client.serpLocations()).isEmpty();
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key");
+
+        client.serpLocations(SerpLocationsOptions.builder().q("austin").build());
+        assertThat(lastQueryString()).isEqualTo("api_key=test-key&q=austin");
     }
 
     @Test

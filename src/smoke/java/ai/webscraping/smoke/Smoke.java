@@ -1,9 +1,10 @@
 /*
  * Hand-run smoke test against the live WebScraping.AI API.
- * Not part of `./gradlew test` — costs ~46 credits per full sweep: page
+ * Not part of `./gradlew test` — costs ~76 credits per full sweep: page
  * tools run with js=false and the datacenter proxy (html/text/selected/
- * selected_multiple 4 x 1, question/fields 2 x 6) plus 15 for the SERP search
- * and 15 for one /data call (the /data call on an unsupported URL is a free 400).
+ * selected_multiple 4 x 1, question/fields 2 x 6) plus 15 for the SERP search,
+ * 30 for the two-page located SERP search and 15 for one /data call (the
+ * /data call on an unsupported URL is a free 400, /serp/locations is free).
  *
  * Each step asserts on the result shape, not just the absence of an
  * exception; any Throwable is reported as a FAIL line (with the API key
@@ -31,12 +32,14 @@ import ai.webscraping.option.HtmlOptions;
 import ai.webscraping.option.QuestionOptions;
 import ai.webscraping.option.SelectedMultipleOptions;
 import ai.webscraping.option.SelectedOptions;
+import ai.webscraping.option.SerpLocationsOptions;
 import ai.webscraping.option.SerpOptions;
 import ai.webscraping.option.TextOptions;
 import ai.webscraping.result.AccountInfo;
 import ai.webscraping.result.DataResult;
 import ai.webscraping.result.FieldsResult;
 import ai.webscraping.result.SelectedMultipleResult;
+import ai.webscraping.result.SerpLocation;
 import ai.webscraping.result.SerpResult;
 
 public final class Smoke {
@@ -44,6 +47,7 @@ public final class Smoke {
     private static final String TARGET = "https://example.com";
     private static final String PROXY = "datacenter";
     private static final String SERP_QUERY = "coffee machines";
+    private static final String SERP_LOCATION = "Austin, TX";
     private static final String DATA_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
     private static final String DATA_UNSUPPORTED_URL = "https://example.com/";
     private static final Pattern API_KEY_PARAM = Pattern.compile("api_key=[^&\\s\"']*");
@@ -130,6 +134,32 @@ public final class Smoke {
             String top = out.getOrganicResults().get(0).getLink();
             return String.format(Locale.ROOT, "state=%s results=%d top=%s",
                 out.getSearchInformation().getOrganicResultsState(), out.getOrganicResults().size(), top);
+        });
+
+        failures += run("serp_location", () -> {
+            SerpResult out = client.serp(SerpOptions.builder().q(SERP_QUERY).location(SERP_LOCATION).pages(2).build());
+            if (out.getOrganicResults() == null || out.getOrganicResults().isEmpty()) {
+                throw new IllegalStateException("no organic_results");
+            }
+            String used = out.getSearchParameters() == null ? null : out.getSearchParameters().getLocationUsed();
+            if (used == null || !used.contains("Austin")) {
+                throw new IllegalStateException("search_parameters.location_used = " + used + ", want Austin");
+            }
+            Integer returned = out.getPagination() == null ? null : out.getPagination().getPagesReturned();
+            return String.format(Locale.ROOT, "location_used=%s results=%d pages_returned=%s",
+                used, out.getOrganicResults().size(), returned);
+        });
+
+        failures += run("serp_locations", () -> {
+            List<SerpLocation> out = client.serpLocations(SerpLocationsOptions.builder().q("austin").limit(3).build());
+            if (out == null || out.isEmpty()) {
+                throw new IllegalStateException("no locations");
+            }
+            String name = out.get(0).getCanonicalName();
+            if (name == null || !name.contains("Austin")) {
+                throw new IllegalStateException("first canonical_name = " + name + ", want Austin");
+            }
+            return String.format(Locale.ROOT, "count=%d first=%s id=%s", out.size(), name, out.get(0).getId());
         });
 
         failures += run("data", () -> {

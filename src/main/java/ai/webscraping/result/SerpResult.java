@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Parsed search engine results returned by {@code GET /serp}. Field names
- * follow the common SERP API naming (the SerpApi family): {@code organic_results}
- * items carry {@code position}, {@code title}, {@code link}, {@code domain},
+ * follow the common SERP naming: {@code organic_results} items carry {@code position}, {@code title}, {@code link}, {@code domain},
  * {@code displayed_link}, {@code snippet} and {@code date}.
  *
  * <p>Optional response fields are returned as {@code null} when the API omits them.
@@ -85,19 +85,42 @@ public final class SerpResult {
         private final String gl;
         private final String hl;
         private final Integer page;
+        private final Integer pages;
+        private final String locationRequested;
+        private final String locationUsed;
+        private final Double lat;
+        private final Double lon;
+        private final Integer radius;
 
+        public SearchParameters(String engine, String q, String gl, String hl, Integer page) {
+            this(engine, q, gl, hl, page, null, null, null, null, null, null);
+        }
+
+        @JsonCreator
         public SearchParameters(
             @JsonProperty("engine") String engine,
             @JsonProperty("q") String q,
             @JsonProperty("gl") String gl,
             @JsonProperty("hl") String hl,
-            @JsonProperty("page") Integer page
+            @JsonProperty("page") Integer page,
+            @JsonProperty("pages") Integer pages,
+            @JsonProperty("location_requested") String locationRequested,
+            @JsonProperty("location_used") String locationUsed,
+            @JsonProperty("lat") Double lat,
+            @JsonProperty("lon") Double lon,
+            @JsonProperty("radius") Integer radius
         ) {
             this.engine = engine;
             this.q = q;
             this.gl = gl;
             this.hl = hl;
             this.page = page;
+            this.pages = pages;
+            this.locationRequested = locationRequested;
+            this.locationUsed = locationUsed;
+            this.lat = lat;
+            this.lon = lon;
+            this.radius = radius;
         }
 
         public String getEngine() {
@@ -120,10 +143,54 @@ public final class SerpResult {
             return page;
         }
 
+        /** Number of pages requested, or {@code null} (only present when more than 1). */
+        public Integer getPages() {
+            return pages;
+        }
+
+        /** The {@code location} or {@code uule} as sent, or {@code null} when neither was. */
+        public String getLocationRequested() {
+            return locationRequested;
+        }
+
+        /**
+         * The matched canonical name of the location the search ran from (the
+         * {@code gl} country's capital when no location was given), or
+         * {@code null} for {@code lat}/{@code lon} and coordinate-{@code uule} searches.
+         */
+        public String getLocationUsed() {
+            return locationUsed;
+        }
+
+        /**
+         * Latitude the search ran from: the one sent, or that of the location,
+         * {@code uule} or {@code gl} country's capital. {@code null} only when
+         * {@code gl} is outside the location list.
+         */
+        public Double getLat() {
+            return lat;
+        }
+
+        /**
+         * Longitude the search ran from: the one sent, or that of the location,
+         * {@code uule} or {@code gl} country's capital. {@code null} only when
+         * {@code gl} is outside the location list.
+         */
+        public Double getLon() {
+            return lon;
+        }
+
+        /** The radius sent (as {@code radius} or inside a {@code uule}), or {@code null} when none was. */
+        public Integer getRadius() {
+            return radius;
+        }
+
         @Override
         public String toString() {
             return "SearchParameters{engine=" + engine + ", q=" + q + ", gl=" + gl
-                + ", hl=" + hl + ", page=" + page + "}";
+                + ", hl=" + hl + ", page=" + page + ", pages=" + pages
+                + ", locationRequested=" + locationRequested + ", locationUsed=" + locationUsed
+                + ", lat=" + lat + ", lon=" + lon + ", radius=" + radius + "}";
         }
     }
 
@@ -192,7 +259,14 @@ public final class SerpResult {
         private final String displayedLink;
         private final String snippet;
         private final String date;
+        private final Integer page;
 
+        public OrganicResult(Integer position, String title, String link, String domain,
+                             String displayedLink, String snippet, String date) {
+            this(position, title, link, domain, displayedLink, snippet, date, null);
+        }
+
+        @JsonCreator
         public OrganicResult(
             @JsonProperty("position") Integer position,
             @JsonProperty("title") String title,
@@ -200,7 +274,8 @@ public final class SerpResult {
             @JsonProperty("domain") String domain,
             @JsonProperty("displayed_link") String displayedLink,
             @JsonProperty("snippet") String snippet,
-            @JsonProperty("date") String date
+            @JsonProperty("date") String date,
+            @JsonProperty("page") Integer page
         ) {
             this.position = position;
             this.title = title;
@@ -209,12 +284,14 @@ public final class SerpResult {
             this.displayedLink = displayedLink;
             this.snippet = snippet;
             this.date = date;
+            this.page = page;
         }
 
         /**
          * Rank within this page, starting at 1 on every page, or {@code null}
          * when the API omits it. Compute {@code (page - 1) * 10 + position}
-         * for an absolute rank.
+         * for an absolute rank. With {@code pages} above 1 it counts through
+         * the combined de-duplicated list (1..N) instead.
          */
         public Integer getPosition() {
             return position;
@@ -248,11 +325,16 @@ public final class SerpResult {
             return date;
         }
 
+        /** The results page this result came from, or {@code null} (only present when {@code pages} is above 1). */
+        public Integer getPage() {
+            return page;
+        }
+
         @Override
         public String toString() {
             return "OrganicResult{position=" + position + ", title=" + title + ", link=" + link
                 + ", domain=" + domain + ", displayedLink=" + displayedLink
-                + ", snippet=" + snippet + ", date=" + date + "}";
+                + ", snippet=" + snippet + ", date=" + date + ", page=" + page + "}";
         }
     }
 
@@ -282,13 +364,21 @@ public final class SerpResult {
 
         private final Integer current;
         private final Integer next;
+        private final Integer pagesReturned;
 
+        public Pagination(Integer current, Integer next) {
+            this(current, next, null);
+        }
+
+        @JsonCreator
         public Pagination(
             @JsonProperty("current") Integer current,
-            @JsonProperty("next") Integer next
+            @JsonProperty("next") Integer next,
+            @JsonProperty("pages_returned") Integer pagesReturned
         ) {
             this.current = current;
             this.next = next;
+            this.pagesReturned = pagesReturned;
         }
 
         public Integer getCurrent() {
@@ -300,9 +390,17 @@ public final class SerpResult {
             return next;
         }
 
+        /**
+         * How many pages came back, or {@code null} (only present when
+         * {@code pages} is above 1). Billing is per page returned.
+         */
+        public Integer getPagesReturned() {
+            return pagesReturned;
+        }
+
         @Override
         public String toString() {
-            return "Pagination{current=" + current + ", next=" + next + "}";
+            return "Pagination{current=" + current + ", next=" + next + ", pagesReturned=" + pagesReturned + "}";
         }
     }
 }
