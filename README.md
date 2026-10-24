@@ -15,7 +15,7 @@ structured field extraction on any page. See the
 
 ```kotlin
 dependencies {
-    implementation("ai.webscraping:webscraping-ai:4.3.0")
+    implementation("ai.webscraping:webscraping-ai:4.3.1")
 }
 ```
 
@@ -23,7 +23,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'ai.webscraping:webscraping-ai:4.3.0'
+    implementation 'ai.webscraping:webscraping-ai:4.3.1'
 }
 ```
 
@@ -33,7 +33,7 @@ dependencies {
 <dependency>
     <groupId>ai.webscraping</groupId>
     <artifactId>webscraping-ai</artifactId>
-    <version>4.3.0</version>
+    <version>4.3.1</version>
 </dependency>
 ```
 

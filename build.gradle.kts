@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "ai.webscraping"
-version = "4.3.0"
+version = "4.3.1"
 description = "Official Java client for the WebScraping.AI API"
 
 repositories {
@@ -38,13 +38,21 @@ tasks.withType<Javadoc>().configureEach {
 }
 
 dependencies {
-    api("com.fasterxml.jackson.core:jackson-databind:2.18.2")
+    api("com.fasterxml.jackson.core:jackson-databind:2.18.12")
 
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation("org.wiremock:wiremock:3.10.0")
-    testImplementation("org.assertj:assertj-core:3.27.0")
+    testImplementation("org.wiremock:wiremock:3.13.2")
+    testImplementation("org.assertj:assertj-core:3.27.7")
+    // WireMock drags in a newer jackson and older httpcomponents; pin tests to the
+    // jackson we ship and to patched httpcomponents.
+    testImplementation(enforcedPlatform("com.fasterxml.jackson:jackson-bom:2.18.12"))
+    constraints {
+        testImplementation("org.apache.httpcomponents.client5:httpclient5:5.6.3")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5:5.4.3")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5-h2:5.4.3")
+    }
 }
 
 tasks.test {

@@ -3,6 +3,11 @@
 All notable changes to `ai.webscraping:webscraping-ai` are documented in
 this file.
 
+## 4.3.1 — 2026-10-24
+### Security
+
+- Bump `jackson-databind` 2.18.2 → 2.18.12 (and with it `jackson-core`), picking up the 2.18-line fixes for the published jackson-databind and jackson-core advisories, among them number-parsing and forward-reference denial-of-service issues in response parsing and several polymorphic-typing validator bypasses.
+
 ## 4.3.0 — 2026-10-24
 ### Added
 

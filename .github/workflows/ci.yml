@@ -69,6 +69,22 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
       - run: ./gradlew checkstyleMain spotbugsMain --stacktrace
 
+  dependency-submission:
+    name: Submit dependency graph
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # GitHub can't parse build.gradle.kts statically; this resolves the
+      # Gradle dependency tree and submits it so Dependabot alerts cover Java.
+      - uses: gradle/actions/dependency-submission@v4
+
   release-tag-check:
     name: Verify release tag
     runs-on: ubuntu-latest
