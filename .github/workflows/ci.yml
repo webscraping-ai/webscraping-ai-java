@@ -19,13 +19,13 @@ jobs:
       matrix:
         java: ['11', '17', '21']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Install both the matrix JDK and JDK 21 (needed to run Gradle 9.x).
       # The last entry becomes JAVA_HOME, so 21 runs the build; the test task
       # is launched on the matrix JDK via -Ptest.java.
       - name: Set up JDKs
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: |
@@ -33,7 +33,7 @@ jobs:
             21
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -46,7 +46,7 @@ jobs:
 
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-report-jdk-${{ matrix.java }}
           path: build/reports/tests/test/
@@ -55,12 +55,12 @@ jobs:
     name: Lint (Checkstyle + SpotBugs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -76,14 +76,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
       # GitHub can't parse build.gradle.kts statically; this resolves the
       # Gradle dependency tree and submits it so Dependabot alerts cover Java.
-      - uses: gradle/actions/dependency-submission@v4
+      - uses: gradle/actions/dependency-submission@v6
 
   release-tag-check:
     name: Verify release tag
@@ -91,7 +91,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [test, lint]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify tag matches Version.VERSION
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
