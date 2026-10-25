@@ -4,7 +4,7 @@ plugins {
     `java-library`
     checkstyle
     id("com.github.spotbugs") version "6.5.13"
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    id("com.vanniktech.maven.publish") version "0.37.0"
     id("signing")
 }
 
@@ -38,20 +38,20 @@ tasks.withType<Javadoc>().configureEach {
 }
 
 dependencies {
-    api("com.fasterxml.jackson.core:jackson-databind:2.18.12")
+    api("com.fasterxml.jackson.core:jackson-databind:2.22.4")
 
-    testImplementation(platform("org.junit:junit-bom:5.14.4"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.wiremock:wiremock:3.13.2")
     testImplementation("org.assertj:assertj-core:3.27.7")
     // WireMock drags in a newer jackson and older httpcomponents; pin tests to the
     // jackson we ship and to patched httpcomponents.
-    testImplementation(enforcedPlatform("com.fasterxml.jackson:jackson-bom:2.18.12"))
+    testImplementation(enforcedPlatform("com.fasterxml.jackson:jackson-bom:2.22.4"))
     constraints {
-        testImplementation("org.apache.httpcomponents.client5:httpclient5:5.6.3")
-        testImplementation("org.apache.httpcomponents.core5:httpcore5:5.4.3")
-        testImplementation("org.apache.httpcomponents.core5:httpcore5-h2:5.4.3")
+        testImplementation("org.apache.httpcomponents.client5:httpclient5:5.6.5")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5:5.4.4")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5-h2:5.4.4")
     }
 }
 
