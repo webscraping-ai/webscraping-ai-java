@@ -4,6 +4,13 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # JUnit 6 needs Java 17; CI still tests Java 11.
+      - dependency-name: 'org.junit:*'
+        update-types: ['version-update:semver-major']
+      # jackson-databind is our public runtime dependency: stay on the 2.18 line, patches only.
+      - dependency-name: 'com.fasterxml.jackson*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
     groups:
       gradle:
         patterns: ['*']
