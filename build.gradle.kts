@@ -1,10 +1,8 @@
-import com.vanniktech.maven.publish.SonatypeHost
-
 plugins {
     `java-library`
     checkstyle
     id("com.github.spotbugs") version "6.5.13"
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    id("com.vanniktech.maven.publish") version "0.37.0"
     id("signing")
 }
 
@@ -121,7 +119,7 @@ tasks.matching { it.name == "spotbugsSmoke" }.configureEach { enabled = false }
 
 // ---------- Publishing (Sonatype Central Portal) ----------
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral()
     signAllPublications()
 
     coordinates("ai.webscraping", "webscraping-ai", project.version.toString())
