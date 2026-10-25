@@ -4,7 +4,7 @@ plugins {
     `java-library`
     checkstyle
     id("com.github.spotbugs") version "6.5.13"
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    id("com.vanniktech.maven.publish") version "0.37.0"
     id("signing")
 }
 
@@ -49,9 +49,9 @@ dependencies {
     // jackson we ship and to patched httpcomponents.
     testImplementation(enforcedPlatform("com.fasterxml.jackson:jackson-bom:2.18.12"))
     constraints {
-        testImplementation("org.apache.httpcomponents.client5:httpclient5:5.6.3")
-        testImplementation("org.apache.httpcomponents.core5:httpcore5:5.4.3")
-        testImplementation("org.apache.httpcomponents.core5:httpcore5-h2:5.4.3")
+        testImplementation("org.apache.httpcomponents.client5:httpclient5:5.6.5")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5:5.4.4")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5-h2:5.4.4")
     }
 }
 
