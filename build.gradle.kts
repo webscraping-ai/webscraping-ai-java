@@ -3,7 +3,7 @@ import com.vanniktech.maven.publish.SonatypeHost
 plugins {
     `java-library`
     checkstyle
-    id("com.github.spotbugs") version "6.0.27"
+    id("com.github.spotbugs") version "6.5.13"
     id("com.vanniktech.maven.publish") version "0.30.0"
     id("signing")
 }
@@ -92,7 +92,7 @@ tasks.register<JavaExec>("smoke") {
 
 // ---------- Lint ----------
 checkstyle {
-    toolVersion = "10.21.1"
+    toolVersion = "14.3.0"
     configFile = rootProject.file("config/checkstyle/checkstyle.xml")
     isIgnoreFailures = false
     maxWarnings = 0
@@ -106,7 +106,7 @@ tasks.matching { it.name == "checkstyleSmoke" }.configureEach {
 }
 
 spotbugs {
-    toolVersion = "4.8.6"
+    toolVersion = "4.10.5"
     effort = com.github.spotbugs.snom.Effort.MAX
     reportLevel = com.github.spotbugs.snom.Confidence.MEDIUM
     excludeFilter = rootProject.file("config/spotbugs/exclude.xml")
