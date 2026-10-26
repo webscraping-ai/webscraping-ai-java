@@ -8,9 +8,9 @@ import com.fasterxml.jackson.databind.JsonNode;
  * Structured page data returned by {@code GET /data}.
  *
  * <p>{@code provider}, {@code type} and {@code parseStatus} are plain strings,
- * not enums: new sites and page types are added on the server, so unknown
- * values come through unchanged. {@link #getData()} is untyped JSON because its
- * shape depends on the provider and page type.
+ * not enums: both are open sets, so unknown values come through unchanged.
+ * {@link #getData()} is untyped JSON because its shape depends on the provider
+ * and page type.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class DataResult {

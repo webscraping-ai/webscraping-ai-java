@@ -7,17 +7,15 @@ import java.util.Map;
 /**
  * Options for {@link ai.webscraping.Client#data(DataOptions)}.
  *
- * <p>{@code /data} returns structured JSON for a page on a supported site
- * (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit). It ignores the
- * page-scraping options ({@code js}, {@code proxy}, {@code headers}, …), so
- * this class deliberately does not extend {@link CommonOptions}. Unset fields
+ * <p>{@code /data} returns structured JSON for any public web page. This
+ * class deliberately does not extend {@link CommonOptions}: the page-scraping
+ * options have no typed setters here. There are no {@code js} or
+ * {@code proxy} options: {@code /data} renders pages with JavaScript where
+ * the site needs it and always uses {@code proxy=auto}. Unset fields
  * are dropped from the wire and the server applies its own defaults.
  *
- * <p>The URL is never checked against a list of sites: new sites and page
- * types are added on the server. An unsupported URL or page type returns a
- * 400 ({@link ai.webscraping.exception.BadRequestException}) that is not
- * charged. Its message lists what is supported. Parameters a future provider needs can be
- * passed with {@link Builder#param(String, Object)} without a client release.
+ * <p>The URL is never checked client-side. Other parameters the API accepts,
+ * or that a future parser needs, can be passed with {@link Builder#param(String, Object)} without a client release.
  */
 public final class DataOptions {
 
@@ -53,7 +51,7 @@ public final class DataOptions {
     }
 
     /**
-     * YouTube videos only. Also fetch the video's transcript into {@code data.transcript}. It's null when
+     * Video pages on sites with a dedicated parser only. Also fetch the video's transcript into {@code data.transcript}. It's null when
      * no matching captions are available. If the transcript fetch itself fails, the whole request fails
      * with a 500 and is not charged. {@code null} when unset.
      */
@@ -62,7 +60,7 @@ public final class DataOptions {
     }
 
     /**
-     * Caption language to pick, e.g. {@code en} or {@code de}. Without it, English is preferred, then the
+     * With {@code transcript=true}. Caption language to pick, e.g. {@code en} or {@code de}. Without it, English is preferred, then the
      * first available track. If the video has no captions in that language, {@code data.transcript} is
      * null. {@code null} when unset.
      */

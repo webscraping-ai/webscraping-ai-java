@@ -81,7 +81,7 @@ sourceSets {
 }
 
 tasks.register<JavaExec>("smoke") {
-    description = "Hits the live WebScraping.AI API across all 10 endpoints. Costs ~76 credits."
+    description = "Hits the live WebScraping.AI API across all 10 endpoints. Uses real credits."
     group = "verification"
     classpath = sourceSets["smoke"].runtimeClasspath
     mainClass = "ai.webscraping.smoke.Smoke"

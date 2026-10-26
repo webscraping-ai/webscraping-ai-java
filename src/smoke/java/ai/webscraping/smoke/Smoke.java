@@ -1,10 +1,15 @@
 /*
  * Hand-run smoke test against the live WebScraping.AI API.
- * Not part of `./gradlew test` — costs ~76 credits per full sweep: page
- * tools run with js=false and the datacenter proxy (html/text/selected/
- * selected_multiple 4 x 1, question/fields 2 x 6) plus 15 for the SERP search,
- * 30 for the two-page located SERP search and 15 for one /data call (the
- * /data call on an unsupported URL is a free 400, /serp/locations is free).
+ * Not part of `./gradlew test` — uses real credits (see
+ * https://webscraping.ai/docs for pricing): page tools (html/text/selected/
+ * selected_multiple, question/fields) run with js=false and the datacenter
+ * proxy to keep the cost down, plus one SERP search, a two-page located SERP
+ * search (billed per page returned) and one /data call on a page with a
+ * dedicated parser; /serp/locations is free. The any-site /data call on
+ * example.com is not charged when it answers 503 (learning the structure
+ * outlasted the request), 422 (no structured data) or a 500 timeout
+ * (extracting the data or loading the page ran out of time); otherwise it is
+ * billed.
  *
  * Each step asserts on the result shape, not just the absence of an
  * exception; any Throwable is reported as a FAIL line (with the API key
@@ -22,10 +27,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import ai.webscraping.Client;
 import ai.webscraping.Config;
 import ai.webscraping.exception.ApiException;
-import ai.webscraping.exception.BadRequestException;
 import ai.webscraping.option.DataOptions;
 import ai.webscraping.option.FieldsOptions;
 import ai.webscraping.option.HtmlOptions;
@@ -49,7 +56,7 @@ public final class Smoke {
     private static final String SERP_QUERY = "coffee machines";
     private static final String SERP_LOCATION = "Austin, TX";
     private static final String DATA_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-    private static final String DATA_UNSUPPORTED_URL = "https://example.com/";
+    private static final String DATA_ANY_SITE_URL = "https://example.com/";
     private static final Pattern API_KEY_PARAM = Pattern.compile("api_key=[^&\\s\"']*");
 
     private static String apiKey;
@@ -182,16 +189,40 @@ public final class Smoke {
                 provider, out.getRequestParameters().getType(), title);
         });
 
-        // No client-side site filter: the server must be the one rejecting this (free 400).
-        failures += run("data_unsupported", () -> {
+        // No client-side site filter: /data accepts any public page. Accept a
+        // success envelope, a 503 structure_processing (learning outlasted the
+        // request), a 422 structure_unavailable or a 500 timeout (extracting the
+        // data or loading the page ran out of time), all thrown as ApiException.
+        failures += run("data_any_site", () -> {
             try {
-                DataResult out = client.data(DataOptions.builder().url(DATA_UNSUPPORTED_URL).build());
-                throw new IllegalStateException("expected HTTP 400, got 200: " + out);
-            } catch (BadRequestException e) {
-                if (e.getMessage() == null || !e.getMessage().contains("Unsupported URL")) {
-                    throw new IllegalStateException("400 without the server's Unsupported URL message: " + e.getMessage(), e);
+                DataResult out = client.data(DataOptions.builder().url(DATA_ANY_SITE_URL).build());
+                if (out.getRequestParameters() == null) {
+                    throw new IllegalStateException("success envelope without request_parameters");
                 }
-                return "server 400: " + e.getMessage();
+                return String.format(Locale.ROOT, "ok provider=%s type=%s parse_status=%s",
+                    out.getRequestParameters().getProvider(), out.getRequestParameters().getType(),
+                    out.getParseStatus());
+            } catch (ApiException e) {
+                String expected = e.getHttpStatus() == 503 ? "structure_processing"
+                    : e.getHttpStatus() == 422 ? "structure_unavailable"
+                    : e.getHttpStatus() == 500 ? "timeout" : null;
+                if (expected == null) {
+                    throw e;
+                }
+                String body = e.getResponseBody();
+                String errorCode = null;
+                if (body != null) {
+                    try {
+                        errorCode = new ObjectMapper().readTree(body).path("error_code").asText(null);
+                    } catch (JsonProcessingException parseError) {
+                        // fall through to the failure below
+                    }
+                }
+                if (!expected.equals(errorCode)) {
+                    throw new IllegalStateException(
+                        e.getHttpStatus() + " without error_code " + expected + ": " + body, e);
+                }
+                return e.getHttpStatus() + " " + expected;
             }
         });
 

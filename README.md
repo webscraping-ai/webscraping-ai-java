@@ -96,9 +96,9 @@ SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines")
     .build());
 
-// Structured data for a page on a supported site
-DataResult video = client.data(DataOptions.builder()
-    .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+// Structured data for any public web page
+DataResult page = client.data(DataOptions.builder()
+    .url("https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html")
     .build());
 
 // Account quota
@@ -208,45 +208,45 @@ client.serp(SerpOptions.builder().q("coffee machines").location(austin.getCanoni
 
 ## Structured data (`/data`)
 
-`data` calls `GET /data` and returns structured JSON for a public page on a
-supported site: pass the page's normal URL and the server detects the site
-(`provider`) and page kind (`type`). Sites today include e.g. YouTube, TikTok,
-X/Twitter, LinkedIn, Instagram and Reddit, but **more sites and page types are
-added on the server**, so the client never checks the URL itself. An
-unsupported URL or page type returns a 400 (`BadRequestException`) that is not
-charged. Its message lists what is supported. `DataOptions` does
-not extend the page-scraping options (`js`, `proxy`, `headers`, … don't apply).
-Priced per site (see [pricing](https://webscraping.ai/docs#data)), including
-pages that parse empty or no longer exist; unsupported URLs and requests that
-fail to fetch are not charged.
+`data` calls `GET /data` and returns structured JSON for any public web page:
+pass the page's normal URL and the server detects the site the page belongs to
+(`provider`, e.g. `toscrape.com`) and the kind of page (`type`, e.g.
+`product`). Some popular sites have dedicated parsers with fixed fields; for
+other sites an AI model learns the page's structure the first time a new kind
+of page is requested (see [Learning a new page structure](#learning-a-new-page-structure)).
+The client never checks the URL itself. `DataOptions` does not extend the
+page-scraping options (`headers`, `timeout`, … aren't typed setters here).
+There are no `js` or `proxy` options: `/data` renders pages with JavaScript
+where the site needs it and always uses `proxy=auto`.
+Priced per request, including `parse_failed` and `not_found` results; failed
+fetches are not charged. See [pricing](https://webscraping.ai/docs#data).
 
 `data` throws `IllegalArgumentException` for a null or blank `url` before
 sending anything.
 
 ```java
 DataResult out = client.data(DataOptions.builder()
-    .url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") // required
-    .country("us")                                      // optional
-    .transcript(true)                                   // optional, YouTube videos only
-    .transcriptLanguage("en")                           // optional
+    .url("https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html") // required
+    .country("us") // optional
     .build());
 
-System.out.println(out.getRequestParameters().getProvider()); // "youtube"
-System.out.println(out.getRequestParameters().getType());     // "video"
+System.out.println(out.getRequestParameters().getProvider()); // "toscrape.com"
+System.out.println(out.getRequestParameters().getType());     // "product"
 System.out.println(out.getParseStatus());                     // "ok", "parse_failed" or "not_found"
 if (out.getData() != null) {
-    System.out.println(out.getData().path("title").asText());
+    System.out.println(out.getData().path("title").asText()); // "A Light in the Attic"
+    System.out.println(out.getData().path("price").asDouble()); // 51.77
 }
 ```
 
 - `country`: Two-letter country code of the proxy used to fetch the page, `us`
   by default. The server checks it and rejects unknown ones with a 400.
-- `transcript`: YouTube videos only. Also fetch the video's transcript into
-  `data.transcript`. It's null when no matching captions are available. If the
+- `transcript`: Video pages on sites with a dedicated parser only. Also fetch
+  the video's transcript into `data.transcript`. It's null when no matching captions are available. If the
   transcript fetch itself fails, the whole request fails with a 500 and is not
   charged.
-- `transcriptLanguage`: Caption language to pick, e.g. `en` or `de`. Without
-  it, English is preferred, then the first available track. If the video has no
+- `transcriptLanguage`: With `transcript=true`. Caption language to pick, e.g.
+  `en` or `de`. Without it, English is preferred, then the first available track. If the video has no
   captions in that language, `data.transcript` is null.
 
 `getProvider()`, `getType()` and `getParseStatus()` are plain strings, not
@@ -254,9 +254,10 @@ enums, so values added later come through unchanged. `getData()` is a Jackson
 `JsonNode` (snake_case keys) whose shape depends on the provider and type; it
 is `null` when the API returns `data: null` (possible with `parse_failed` or
 `not_found`, which are still successful, charged requests). Map it onto your
-own class with `new ObjectMapper().treeToValue(out.getData(), MyVideo.class)`.
+own class with `new ObjectMapper().treeToValue(out.getData(), MyProduct.class)`.
 
-Parameters a future provider needs can be sent without a client release via
+Other parameters the API accepts (for example `timeout`, `js_timeout`,
+`wait_for` or `device`, which apply to pages without a dedicated parser) or that a future parser needs can be sent without a client release via
 `.param(key, value)` (or `.params(map)`); values must be a `String`, `Boolean`
 or `Number` and are percent-encoded like everything else. A blank key,
 `api_key` or `url` (any case), or a typed option's name (`country`,
@@ -265,10 +266,51 @@ or `Number` and are percent-encoded like everything else. A blank key,
 
 ```java
 client.data(DataOptions.builder()
-    .url("https://www.tiktok.com/@nasa")
+    .url("https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html")
     .param("some_new_option", "value")
     .build());
 ```
+
+### Learning a new page structure
+
+On a site without a dedicated parser, the first request for a new kind of page
+also learns the page's structure, so it can take up to about 45 seconds; keep
+`requestTimeout` (60 seconds by default) above that. Afterwards pages of that
+kind on that site return data straight away for every user.
+
+When learning takes longer than the request, or another request is already
+learning that site, the API returns HTTP 503 with
+`{"message": "...", "error_code": "structure_processing", "retry_after": 30}`
+(and a `Retry-After` header). It is not charged. The client throws a plain
+`ApiException` with `getHttpStatus() == 503`; `error_code` and `retry_after`
+are only in the raw `getResponseBody()`. Retry after `retry_after` seconds; the
+retry can return data (if learning failed meanwhile, it may learn again or
+return the 422 below):
+
+```java
+DataResult out;
+try {
+    out = client.data(opts);
+} catch (ApiException e) {
+    if (e.getHttpStatus() != 503) throw e;
+    // structure_processing: wait retry_after seconds, then try again
+    int retryAfter = new ObjectMapper().readTree(e.getResponseBody()).path("retry_after").asInt(30);
+    Thread.sleep(retryAfter * 1000L);
+    out = client.data(opts);
+}
+```
+
+If no structured data can be found on the page (an empty page, a login wall),
+the API returns HTTP 422 with `error_code: "structure_unavailable"`, which is
+not charged. The client throws a plain `ApiException` with `getHttpStatus() ==
+422`; `error_code` is only in the raw `getResponseBody()`. Use `fields` to
+extract specific fields from such pages instead.
+
+Redirects within the same site (http→https, `www`, trailing slash) are
+followed; a redirect to another site throws a `ServerException` (HTTP 500,
+`error_code` `target_redirect`, the target in the message), not charged.
+Starting too many new kinds of pages in an hour throws a `RateLimitException`
+(HTTP 429, `error_code` `rate_limited`).
 
 ## Configuration
 
@@ -347,7 +389,7 @@ reproduced by every official SDK:
 ./gradlew checkstyleMain spotbugsMain
 ./gradlew javadoc
 
-# Live smoke test (hits production and is billed: 12 calls, SERP billed per page returned):
+# Live smoke test (hits production and uses real credits: 12 calls, SERP billed per page returned):
 WEBSCRAPING_AI_API_KEY=... ./gradlew smoke
 ```
 

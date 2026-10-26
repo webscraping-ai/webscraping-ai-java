@@ -275,19 +275,26 @@ public final class Client {
 
     // ---------- /data ----------
     /**
-     * Structured JSON for a page on a supported site (e.g. a YouTube video, a
-     * TikTok profile, an X post, a LinkedIn company, an Instagram reel or a
-     * Reddit thread). Priced per site (see https://webscraping.ai/docs#data),
-     * including pages that parse empty ({@code parse_failed}) or no longer
-     * exist ({@code not_found}); unsupported URLs and requests that fail to
-     * fetch are not charged. None
-     * of the page-scraping options apply.
+     * Structured JSON for any public web page. Some popular sites have
+     * dedicated parsers with fixed fields; for other sites an AI model learns
+     * the page's structure. Priced per request; see
+     * https://webscraping.ai/docs#data. The page-scraping options have no
+     * typed setters here.
      *
-     * <p>The URL is sent exactly as given and is never checked against a
-     * list of sites: more sites and page types are added on the server. An
-     * unsupported URL or page type throws
-     * {@link ai.webscraping.exception.BadRequestException}: a 400 that is not
-     * charged. Its message lists what is supported.
+     * <p>The URL is sent exactly as given and is never checked client-side.
+     * The first request for a new kind of page on a site without a dedicated
+     * parser also learns its structure, so it can take up to about 45 seconds
+     * (keep the request timeout above that). When learning takes longer, or
+     * another request is already learning that site, the API returns HTTP 503
+     * ({@code error_code: structure_processing}, {@code retry_after} in
+     * seconds, not charged), thrown as a plain
+     * {@link ai.webscraping.exception.ApiException} with
+     * {@code getHttpStatus() == 503} (the JSON is in {@code getResponseBody()});
+     * retry after {@code retry_after} seconds, which can return data. If
+     * no structured data can be found (empty page, login wall) the API returns
+     * a 422 ({@code error_code: structure_unavailable}, not charged), thrown as
+     * a plain {@link ai.webscraping.exception.ApiException}; use
+     * {@link #fields} for such pages.
      *
      * @throws IllegalArgumentException if {@code opts.url} is null or blank,
      *     or an extra param key is blank, is {@code api_key} or {@code url}

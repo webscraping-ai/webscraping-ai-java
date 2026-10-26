@@ -26,12 +26,12 @@ public final class DataRequestParameters {
         return url;
     }
 
-    /** The detected site, e.g. {@code youtube} or {@code reddit}. An open set: new sites are added over time. */
+    /** The site the page belongs to, e.g. {@code toscrape.com}. An open set. */
     public String getProvider() {
         return provider;
     }
 
-    /** The detected page kind within the site, e.g. {@code video} or {@code profile}. Also an open set. */
+    /** The kind of page, e.g. {@code product}. Also an open set. */
     public String getType() {
         return type;
     }
