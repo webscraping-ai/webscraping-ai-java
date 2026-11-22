@@ -8,7 +8,7 @@ this file.
 
 - `CommonOptions.BaseBuilder#jsTimeout` parameter renamed from `jsTimeoutSeconds` to `jsTimeoutMs` (the value has always been milliseconds; source compatible). Added javadoc: `timeout` max 25000 ms (larger values are capped), `jsTimeout` max 20000 ms, and `proxy` also accepts `auto` (tries datacenter, then residential, then stealth; bills only the tier that worked; not with `customProxy`).
 - Docs: `DataOptions` `country` has no fixed `us` default. Without it, a page on a country site with a dedicated parser (e.g. uk.indeed.com) uses that site's country; everything else uses `us`.
-- Docs: `/ai/fields`' `result` wrapper is no longer described as drift from the spec; values are strings or `null`. The `/data` example now shows type `book`. `/data` can throw retryable 500s with `error_code` `timeout` or `ai_unavailable`, and `question`/`fields` a 500 `ai_unavailable` (not charged).
+- Docs: `/ai/fields`' `result` wrapper is no longer described as drift from the spec; values are strings or `null`. The `/data` example now shows type `book`. The SERP `gl` default is the country of `location`, `lat` + `lon` or `uule`, otherwise `us`. `/data` can throw retryable 500s with `error_code` `timeout` or `ai_unavailable`, and `question`/`fields` a 500 `ai_unavailable` (not charged).
 - `./gradlew smoke` accepts a 500 `ai_unavailable` from `/data` on a page without a dedicated parser.
 
 ## 4.3.1 — 2026-10-24

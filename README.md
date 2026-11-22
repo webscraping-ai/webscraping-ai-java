@@ -124,7 +124,8 @@ URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
 
 Every search runs from one fixed location — `location`, `lat` + `lon` or
 `uule`, otherwise the capital of the `gl` country — so repeats and later pages
-are consistent; `gl` defaults to the location's country. `pages` (1–5) fetches
+are consistent; `gl` defaults to the country of `location`, `lat` + `lon` or
+`uule` when given, otherwise `us`. `pages` (1–5) fetches
 consecutive pages, starting at `page`, as one de-duplicated list, billed per
 page returned.
 
@@ -138,7 +139,7 @@ options may be combined are checked by the server: a 400, not billed.
 SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines") // required
     .engine("google")     // optional, default "google" (only engine today)
-    .gl("de")             // optional two-letter country, default: the location's country, otherwise "us"
+    .gl("de")             // optional two-letter country, default: the country of location, lat/lon or uule, otherwise "us"
     .hl("de")             // optional two-letter language, default "en"
     .page(2)              // optional, 1-based, 10 results per page (server rejects > 100 with a 400)
     .build());
