@@ -241,10 +241,10 @@ if (out.getData() != null) {
 ```
 
 - `country`: Two-letter country code of the proxy used to fetch the page.
-  Without it, a page on a country site with a dedicated parser (e.g.
-  `uk.indeed.com`) uses that site's country; everything else uses `us`. Some
-  dedicated parsers use a fixed route and ignore it. The server checks it and
-  rejects unknown ones with a 400.
+  Without it, a page on an Indeed country site (e.g. `uk.indeed.com`) uses
+  that site's country; everything else uses `us`. Some dedicated parsers use a
+  fixed route and ignore it. The server checks it and rejects unknown ones with
+  a 400.
 - `transcript`: Video pages on sites with a dedicated parser only. Also fetch
   the video's transcript into `data.transcript`. It's null when no matching captions are available. If the
   transcript fetch itself fails, the whole request fails with a 500 and is not
