@@ -128,6 +128,10 @@ public abstract class CommonOptions {
             return self();
         }
 
+        /**
+         * Maximum time in milliseconds to retrieve the target page (API default
+         * 10000, max 25000; larger values are capped).
+         */
         public B timeout(int timeoutMs) {
             this.timeout = timeoutMs;
             return self();
@@ -138,8 +142,12 @@ public abstract class CommonOptions {
             return self();
         }
 
-        public B jsTimeout(int jsTimeoutSeconds) {
-            this.jsTimeout = jsTimeoutSeconds;
+        /**
+         * Maximum JavaScript rendering time in milliseconds after page load (API
+         * default 2000, max 20000).
+         */
+        public B jsTimeout(int jsTimeoutMs) {
+            this.jsTimeout = jsTimeoutMs;
             return self();
         }
 
@@ -148,6 +156,12 @@ public abstract class CommonOptions {
             return self();
         }
 
+        /**
+         * Proxy type: {@code datacenter} (API default), {@code residential},
+         * {@code stealth} or {@code auto}. {@code auto} tries datacenter, then
+         * residential, then stealth in one request and bills only the tier that
+         * worked; it can't be combined with {@link #customProxy(String)}.
+         */
         public B proxy(String proxy) {
             this.proxy = proxy;
             return self();

@@ -191,8 +191,9 @@ public final class Smoke {
 
         // No client-side site filter: /data accepts any public page. Accept a
         // success envelope, a 503 structure_processing (learning outlasted the
-        // request), a 422 structure_unavailable or a 500 timeout (extracting the
-        // data or loading the page ran out of time), all thrown as ApiException.
+        // request), a 422 structure_unavailable, or a 500 timeout (extracting the
+        // data or loading the page ran out of time) or ai_unavailable (the AI model
+        // is busy), all thrown as ApiException.
         failures += run("data_any_site", () -> {
             try {
                 DataResult out = client.data(DataOptions.builder().url(DATA_ANY_SITE_URL).build());
@@ -203,9 +204,9 @@ public final class Smoke {
                     out.getRequestParameters().getProvider(), out.getRequestParameters().getType(),
                     out.getParseStatus());
             } catch (ApiException e) {
-                String expected = e.getHttpStatus() == 503 ? "structure_processing"
-                    : e.getHttpStatus() == 422 ? "structure_unavailable"
-                    : e.getHttpStatus() == 500 ? "timeout" : null;
+                List<String> expected = e.getHttpStatus() == 503 ? List.of("structure_processing")
+                    : e.getHttpStatus() == 422 ? List.of("structure_unavailable")
+                    : e.getHttpStatus() == 500 ? List.of("timeout", "ai_unavailable") : null;
                 if (expected == null) {
                     throw e;
                 }
@@ -218,11 +219,11 @@ public final class Smoke {
                         // fall through to the failure below
                     }
                 }
-                if (!expected.equals(errorCode)) {
+                if (errorCode == null || !expected.contains(errorCode)) {
                     throw new IllegalStateException(
-                        e.getHttpStatus() + " without error_code " + expected + ": " + body, e);
+                        e.getHttpStatus() + " without error_code " + String.join(" or ", expected) + ": " + body, e);
                 }
-                return e.getHttpStatus() + " " + expected;
+                return e.getHttpStatus() + " " + errorCode;
             }
         });
 
