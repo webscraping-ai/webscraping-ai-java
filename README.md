@@ -124,7 +124,8 @@ URL. `SerpOptions` does not extend the page-scraping options (`js`, `proxy`,
 
 Every search runs from one fixed location — `location`, `lat` + `lon` or
 `uule`, otherwise the capital of the `gl` country — so repeats and later pages
-are consistent; `gl` defaults to the location's country. `pages` (1–5) fetches
+are consistent; `gl` defaults to the country of `location`, `lat` + `lon` or
+`uule` when given, otherwise `us`. `pages` (1–5) fetches
 consecutive pages, starting at `page`, as one de-duplicated list, billed per
 page returned.
 
@@ -138,7 +139,7 @@ options may be combined are checked by the server: a 400, not billed.
 SerpResult serp = client.serp(SerpOptions.builder()
     .q("coffee machines") // required
     .engine("google")     // optional, default "google" (only engine today)
-    .gl("de")             // optional two-letter country, default: the location's country, otherwise "us"
+    .gl("de")             // optional two-letter country, default: the country of location, lat/lon or uule, otherwise "us"
     .hl("de")             // optional two-letter language, default "en"
     .page(2)              // optional, 1-based, 10 results per page (server rejects > 100 with a 400)
     .build());
@@ -211,7 +212,7 @@ client.serp(SerpOptions.builder().q("coffee machines").location(austin.getCanoni
 `data` calls `GET /data` and returns structured JSON for any public web page:
 pass the page's normal URL and the server detects the site the page belongs to
 (`provider`, e.g. `toscrape.com`) and the kind of page (`type`, e.g.
-`product`). Some popular sites have dedicated parsers with fixed fields; for
+`book`). Some popular sites have dedicated parsers with fixed fields; for
 other sites an AI model learns the page's structure the first time a new kind
 of page is requested (see [Learning a new page structure](#learning-a-new-page-structure)).
 The client never checks the URL itself. `DataOptions` does not extend the
@@ -231,7 +232,7 @@ DataResult out = client.data(DataOptions.builder()
     .build());
 
 System.out.println(out.getRequestParameters().getProvider()); // "toscrape.com"
-System.out.println(out.getRequestParameters().getType());     // "product"
+System.out.println(out.getRequestParameters().getType());     // "book"
 System.out.println(out.getParseStatus());                     // "ok", "parse_failed" or "not_found"
 if (out.getData() != null) {
     System.out.println(out.getData().path("title").asText()); // "A Light in the Attic"
@@ -239,8 +240,11 @@ if (out.getData() != null) {
 }
 ```
 
-- `country`: Two-letter country code of the proxy used to fetch the page, `us`
-  by default. The server checks it and rejects unknown ones with a 400.
+- `country`: Two-letter country code of the proxy used to fetch the page.
+  Without it, a page on an Indeed country site (e.g. `uk.indeed.com`) uses
+  that site's country; everything else uses `us`. Some dedicated parsers use a
+  fixed route and ignore it. The server checks it and rejects unknown ones with
+  a 400.
 - `transcript`: Video pages on sites with a dedicated parser only. Also fetch
   the video's transcript into `data.transcript`. It's null when no matching captions are available. If the
   transcript fetch itself fails, the whole request fails with a 500 and is not
@@ -310,7 +314,10 @@ Redirects within the same site (http→https, `www`, trailing slash) are
 followed; a redirect to another site throws a `ServerException` (HTTP 500,
 `error_code` `target_redirect`, the target in the message), not charged.
 Starting too many new kinds of pages in an hour throws a `RateLimitException`
-(HTTP 429, `error_code` `rate_limited`).
+(HTTP 429, `error_code` `rate_limited`). Two retryable `ServerException`s (HTTP
+500, not charged) can also come back: `error_code` `timeout` (loading the page
+or extracting the data ran out of time) and `ai_unavailable` (the AI model is
+busy). Try again.
 
 ## Configuration
 
@@ -370,16 +377,19 @@ Full hierarchy:
 `ApiException` exposes the API's documented error envelope via `getStatusCode()`,
 `getStatusMessage()`, `getBody()`, and the raw `getResponseBody()`.
 
+`question` and `fields` can also throw a `ServerException` (HTTP 500) with
+`error_code` `ai_unavailable` in `getResponseBody()` when the AI model is busy.
+It is not charged; try again.
+
 ## Response shapes
 
-Two endpoints return shapes that differ from the OpenAPI spec — upstream drift
-reproduced by every official SDK:
-
 - **`fields`** wraps the extracted fields under `result`:
-  `FieldsResult.getResult()` returns `Map<String, String>`.
+  `FieldsResult.getResult()` returns `Map<String, String>`; every value is a
+  string or `null`.
 - **`selectedMultiple`** returns `List<List<String>>` (one outer wrapper
   containing all matches), not the flat list the spec implies.
-  `SelectedMultipleResult.getResults()` returns the outer list directly.
+  `SelectedMultipleResult.getResults()` returns the outer list directly. This
+  one differs from the OpenAPI spec; every official SDK reproduces it.
 
 ## Development
 

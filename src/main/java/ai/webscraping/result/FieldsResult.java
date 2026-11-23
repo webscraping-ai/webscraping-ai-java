@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * The {@code /ai/fields} response wraps the extracted fields under a
- * {@code result} key — confirmed against the live API 2026-05-12. Mirrors the
+ * {@code result} key; every value is a string or {@code null}. Mirrors the
  * same shape every other official SDK exposes.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

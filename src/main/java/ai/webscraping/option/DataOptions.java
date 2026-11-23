@@ -43,7 +43,9 @@ public final class DataOptions {
     }
 
     /**
-     * Two-letter country code of the proxy used to fetch the page, {@code us} by default, or {@code null}.
+     * Two-letter country code of the proxy used to fetch the page, or {@code null}. Without it, a page on an
+     * Indeed country site (e.g. {@code uk.indeed.com}) uses that site's country; everything else uses
+     * {@code us}. Some dedicated parsers use a fixed route and ignore it.
      * The server checks it against its proxy-country list and rejects unknown ones with a 400.
      */
     public String getCountry() {
